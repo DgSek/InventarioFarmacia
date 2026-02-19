@@ -5,9 +5,11 @@ export interface Medicamento {
   tipo_medicamento: string;
   nombre: string;
   concentracion: string;
+  codigo_barras: string;
   stock_minimo: number;
   activo: boolean;
   ubicacion: string;
+  estante?: string; // Agregado según el diseño de la DB
 }
 
 export interface Existencia {
@@ -32,8 +34,7 @@ export interface Movimiento {
 
 export interface Usuario {
   id_usuario: number;
-  nombre: string;
-  rol: string;
+  nombre_usuario: string; // Cambiado para coincidir con el comando SQL que usamos
 }
 
 export interface Alerta {

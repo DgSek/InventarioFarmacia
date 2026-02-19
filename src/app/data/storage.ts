@@ -1,4 +1,4 @@
-// Sistema de almacenamiento local para el inventario de medicamentos
+// src/data/storage.ts
 import {
   Medicamento,
   Existencia,
@@ -9,298 +9,89 @@ import {
   ReporteConsumo,
 } from '../types';
 
-// Usuario actual (simulado)
-const CURRENT_USER_ID = 1;
+// URL base de tu API (Node.js/Express)
+const API_URL = 'http://localhost:5000/api';
 
-// Datos iniciales
-const initialMedicamentos: Medicamento[] = [
-  {
-    id_medicamento: 1,
-    tipo_medicamento: 'Analgésico',
-    nombre: 'Paracetamol',
-    concentracion: '500mg',
-    stock_minimo: 100,
-    activo: true,
-    ubicacion: 'Estante A1',
-  },
-  {
-    id_medicamento: 2,
-    tipo_medicamento: 'Antibiótico',
-    nombre: 'Amoxicilina',
-    concentracion: '500mg',
-    stock_minimo: 50,
-    activo: true,
-    ubicacion: 'Estante B2',
-  },
-  {
-    id_medicamento: 3,
-    tipo_medicamento: 'Antiinflamatorio',
-    nombre: 'Ibuprofeno',
-    concentracion: '400mg',
-    stock_minimo: 80,
-    activo: true,
-    ubicacion: 'Estante A2',
-  },
-  {
-    id_medicamento: 4,
-    tipo_medicamento: 'Antihipertensivo',
-    nombre: 'Losartán',
-    concentracion: '50mg',
-    stock_minimo: 60,
-    activo: true,
-    ubicacion: 'Estante C1',
-  },
-  {
-    id_medicamento: 5,
-    tipo_medicamento: 'Antidiabético',
-    nombre: 'Metformina',
-    concentracion: '850mg',
-    stock_minimo: 70,
-    activo: true,
-    ubicacion: 'Estante C2',
-  },
-];
-
-const initialExistencias: Existencia[] = [
-  {
-    id_existencia: 1,
-    id_medicamento: 1,
-    codigo_referencia: 'LOTE-2024-001',
-    cantidad_actual: 250,
-    fecha_registro: '2024-01-15',
-  },
-  {
-    id_existencia: 2,
-    id_medicamento: 1,
-    codigo_referencia: 'LOTE-2024-002',
-    cantidad_actual: 150,
-    fecha_registro: '2024-02-10',
-  },
-  {
-    id_existencia: 3,
-    id_medicamento: 2,
-    codigo_referencia: 'LOTE-2024-003',
-    cantidad_actual: 30,
-    fecha_registro: '2024-01-20',
-  },
-  {
-    id_existencia: 4,
-    id_medicamento: 3,
-    codigo_referencia: 'LOTE-2024-004',
-    cantidad_actual: 45,
-    fecha_registro: '2024-02-01',
-  },
-  {
-    id_existencia: 5,
-    id_medicamento: 4,
-    codigo_referencia: 'LOTE-2024-005',
-    cantidad_actual: 100,
-    fecha_registro: '2024-01-25',
-  },
-  {
-    id_existencia: 6,
-    id_medicamento: 5,
-    codigo_referencia: 'LOTE-2024-006',
-    cantidad_actual: 85,
-    fecha_registro: '2024-02-05',
-  },
-];
-
-const initialMovimientos: Movimiento[] = [
-  {
-    id_movimiento: 1,
-    id_existencia: 1,
-    tipo_movimiento: 'entrada',
-    cantidad: 300,
-    fecha: '2024-01-15T10:00:00',
-    id_usuario: 1,
-    observaciones: 'Compra inicial',
-  },
-  {
-    id_movimiento: 2,
-    id_existencia: 1,
-    tipo_movimiento: 'salida',
-    cantidad: 50,
-    fecha: '2024-02-10T14:30:00',
-    id_usuario: 1,
-    observaciones: 'Dispensación',
-  },
-  {
-    id_movimiento: 3,
-    id_existencia: 2,
-    tipo_movimiento: 'entrada',
-    cantidad: 200,
-    fecha: '2024-02-10T09:00:00',
-    id_usuario: 1,
-    observaciones: 'Donación',
-  },
-  {
-    id_movimiento: 4,
-    id_existencia: 2,
-    tipo_movimiento: 'salida',
-    cantidad: 50,
-    fecha: '2024-02-15T11:00:00',
-    id_usuario: 1,
-    observaciones: 'Dispensación',
-  },
-  {
-    id_movimiento: 5,
-    id_existencia: 3,
-    tipo_movimiento: 'entrada',
-    cantidad: 100,
-    fecha: '2024-01-20T08:00:00',
-    id_usuario: 1,
-    observaciones: 'Compra',
-  },
-  {
-    id_movimiento: 6,
-    id_existencia: 3,
-    tipo_movimiento: 'salida',
-    cantidad: 70,
-    fecha: '2024-02-12T16:00:00',
-    id_usuario: 1,
-    observaciones: 'Dispensación',
-  },
-];
-
-const initialUsuarios: Usuario[] = [
-  { id_usuario: 1, nombre: 'Dr. Juan Pérez', rol: 'Administrador' },
-  { id_usuario: 2, nombre: 'Enf. María García', rol: 'Farmacéutico' },
-  { id_usuario: 3, nombre: 'Dr. Carlos López', rol: 'Médico' },
-];
-
-// Funciones de utilidad para localStorage
-function getFromStorage<T>(key: string, defaultValue: T): T {
-  const stored = localStorage.getItem(key);
-  if (!stored) return defaultValue;
-  try {
-    return JSON.parse(stored);
-  } catch {
-    return defaultValue;
-  }
-}
-
-function saveToStorage<T>(key: string, value: T): void {
-  localStorage.setItem(key, JSON.stringify(value));
-}
-
-// API del storage
 export const storage = {
-  // Medicamentos
-  getMedicamentos(): Medicamento[] {
-    return getFromStorage('medicamentos', initialMedicamentos);
+  // --- MEDICAMENTOS ---
+  async getMedicamentos(): Promise<Medicamento[]> {
+    const response = await fetch(`${API_URL}/medicamentos`);
+    return await response.json();
   },
   
-  saveMedicamento(medicamento: Omit<Medicamento, 'id_medicamento'>): Medicamento {
-    const medicamentos = this.getMedicamentos();
-    const newId = Math.max(0, ...medicamentos.map(m => m.id_medicamento)) + 1;
-    const newMedicamento = { ...medicamento, id_medicamento: newId };
-    medicamentos.push(newMedicamento);
-    saveToStorage('medicamentos', medicamentos);
-    return newMedicamento;
+  async saveMedicamento(medicamento: Omit<Medicamento, 'id_medicamento'>): Promise<Medicamento> {
+    const response = await fetch(`${API_URL}/medicamentos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(medicamento),
+    });
+    return await response.json();
   },
   
-  updateMedicamento(medicamento: Medicamento): void {
-    const medicamentos = this.getMedicamentos();
-    const index = medicamentos.findIndex(m => m.id_medicamento === medicamento.id_medicamento);
-    if (index !== -1) {
-      medicamentos[index] = medicamento;
-      saveToStorage('medicamentos', medicamentos);
-    }
+  // En src/data/storage.ts
+async updateMedicamento(medicamento: Medicamento): Promise<Medicamento> {
+  const response = await fetch(`${API_URL}/medicamentos/${medicamento.id_medicamento}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(medicamento),
+  });
+  return await response.json(); // <-- Es vital que retorne el objeto
+},
+  
+  // --- EXISTENCIAS ---
+  async getExistencias(): Promise<Existencia[]> {
+    const response = await fetch(`${API_URL}/existencias`);
+    return await response.json();
   },
   
-  // Existencias
-  getExistencias(): Existencia[] {
-    return getFromStorage('existencias', initialExistencias);
+  async saveExistencia(existencia: Omit<Existencia, 'id_existencia'>): Promise<Existencia> {
+    const response = await fetch(`${API_URL}/existencias`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(existencia),
+    });
+    return await response.json();
   },
   
-  saveExistencia(existencia: Omit<Existencia, 'id_existencia'>): Existencia {
-    const existencias = this.getExistencias();
-    const newId = Math.max(0, ...existencias.map(e => e.id_existencia)) + 1;
-    const newExistencia = { ...existencia, id_existencia: newId };
-    existencias.push(newExistencia);
-    saveToStorage('existencias', existencias);
-    return newExistencia;
+  // --- MOVIMIENTOS ---
+  async getMovimientos(): Promise<Movimiento[]> {
+    const response = await fetch(`${API_URL}/movimientos`);
+    return await response.json();
   },
   
-  updateExistencia(id: number, cantidad: number): void {
-    const existencias = this.getExistencias();
-    const index = existencias.findIndex(e => e.id_existencia === id);
-    if (index !== -1) {
-      existencias[index].cantidad_actual = cantidad;
-      saveToStorage('existencias', existencias);
-    }
-  },
-  
-  // Movimientos
-  getMovimientos(): Movimiento[] {
-    return getFromStorage('movimientos', initialMovimientos);
-  },
-  
-  registrarMovimiento(
+  async registrarMovimiento(
     id_existencia: number,
     tipo_movimiento: TipoMovimiento,
     cantidad: number,
+    id_usuario: number, // Añadido para que coincida con tu tabla SQL
     observaciones?: string
-  ): Movimiento | null {
-    // Validar que la existencia existe
-    const existencias = this.getExistencias();
-    const existencia = existencias.find(e => e.id_existencia === id_existencia);
-    if (!existencia) return null;
+  ): Promise<Movimiento | null> {
+    const response = await fetch(`${API_URL}/movimientos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_existencia, tipo_movimiento, cantidad, id_usuario, observaciones }),
+    });
     
-    // Validar stock negativo
-    if ((tipo_movimiento === 'salida' || tipo_movimiento === 'caducado') && 
-        existencia.cantidad_actual < cantidad) {
-      return null;
-    }
-    
-    // Crear movimiento
-    const movimientos = this.getMovimientos();
-    const newId = Math.max(0, ...movimientos.map(m => m.id_movimiento)) + 1;
-    const newMovimiento: Movimiento = {
-      id_movimiento: newId,
-      id_existencia,
-      tipo_movimiento,
-      cantidad,
-      fecha: new Date().toISOString(),
-      id_usuario: CURRENT_USER_ID,
-      observaciones,
-    };
-    
-    movimientos.push(newMovimiento);
-    saveToStorage('movimientos', movimientos);
-    
-    // Actualizar cantidad_actual
-    let nuevaCantidad = existencia.cantidad_actual;
-    if (tipo_movimiento === 'entrada') {
-      nuevaCantidad += cantidad;
-    } else {
-      nuevaCantidad -= cantidad;
-    }
-    this.updateExistencia(id_existencia, nuevaCantidad);
-    
-    return newMovimiento;
+    if (!response.ok) return null;
+    return await response.json();
   },
   
-  // Usuarios
-  getUsuarios(): Usuario[] {
-    return getFromStorage('usuarios', initialUsuarios);
+  // --- USUARIOS ---
+  async getUsuarios(): Promise<Usuario[]> {
+    const response = await fetch(`${API_URL}/usuarios`);
+    return await response.json();
   },
+
   
-  getCurrentUser(): Usuario {
-    return this.getUsuarios().find(u => u.id_usuario === CURRENT_USER_ID) || initialUsuarios[0];
-  },
-  
-  // Consultas avanzadas
-  getInventarioCompleto(): Array<{
-    medicamento: Medicamento;
-    existencias: Existencia[];
-    cantidad_total: number;
-  }> {
-    const medicamentos = this.getMedicamentos().filter(m => m.activo);
-    const existencias = this.getExistencias();
-    
-    return medicamentos.map(medicamento => {
+  async getInventarioCompleto() {
+    // Obtenemos los datos base del servidor
+    const [medicamentos, existencias] = await Promise.all([
+      this.getMedicamentos(),
+      this.getExistencias()
+    ]);
+
+    // Procesamos la lógica en el cliente para el prototipo
+    return medicamentos.filter(m => m.activo).map(medicamento => {
       const existenciasMed = existencias.filter(e => e.id_medicamento === medicamento.id_medicamento);
       const cantidad_total = existenciasMed.reduce((sum, e) => sum + e.cantidad_actual, 0);
       
@@ -311,9 +102,48 @@ export const storage = {
       };
     });
   },
-  
-  getAlertas(): Alerta[] {
-    const inventario = this.getInventarioCompleto();
+
+  async getReporteConsumo(): Promise<ReporteConsumo[]> {
+  const [movimientos, existencias, medicamentos] = await Promise.all([
+    this.getMovimientos(),
+    this.getExistencias(),
+    this.getMedicamentos()
+  ]);
+
+  const salidas = movimientos.filter(m => m.tipo_movimiento === 'salida');
+  const conteo = new Map<number, { cant: number; movs: number }>();
+
+  salidas.forEach(mov => {
+    const ex = existencias.find(e => e.id_existencia === mov.id_existencia);
+    if (ex) {
+      const actual = conteo.get(ex.id_medicamento) || { cant: 0, movs: 0 };
+      conteo.set(ex.id_medicamento, {
+        cant: actual.cant + mov.cantidad,
+        movs: actual.movs + 1
+      });
+    }
+  });
+
+  return Array.from(conteo.entries()).map(([id, data]) => {
+    const med = medicamentos.find(m => m.id_medicamento === id);
+    return {
+      nombre_medicamento: med?.nombre || 'Desconocido',
+      tipo_medicamento: med?.tipo_medicamento || 'N/A',
+      cantidad_total: data.cant,
+      num_movimientos: data.movs
+    };
+  }).sort((a, b) => b.cantidad_total - a.cantidad_total);
+},
+
+  async getCurrentUser(): Promise<Usuario> {
+  const response = await fetch(`${API_URL}/usuarios`);
+  const usuarios = await response.json();
+  // Retornamos el primer usuario por defecto para el prototipo
+  return usuarios.find((u: any) => u.id_usuario === 1) || usuarios[0];
+},
+
+  async getAlertas(): Promise<Alerta[]> {
+    const inventario = await this.getInventarioCompleto();
     
     return inventario
       .filter(item => item.cantidad_total <= item.medicamento.stock_minimo)
@@ -325,58 +155,5 @@ export const storage = {
         tipo_medicamento: item.medicamento.tipo_medicamento,
         ubicacion: item.medicamento.ubicacion,
       }));
-  },
-  
-  getReporteConsumo(mes?: number, anio?: number): ReporteConsumo[] {
-    const movimientos = this.getMovimientos();
-    const existencias = this.getExistencias();
-    const medicamentos = this.getMedicamentos();
-    
-    // Filtrar por fecha si se especifica
-    let movimientosFiltrados = movimientos.filter(m => m.tipo_movimiento === 'salida');
-    if (mes !== undefined && anio !== undefined) {
-      movimientosFiltrados = movimientosFiltrados.filter(m => {
-        const fecha = new Date(m.fecha);
-        return fecha.getMonth() === mes && fecha.getFullYear() === anio;
-      });
-    }
-    
-    // Agrupar por medicamento
-    const consumoPorMedicamento = new Map<number, { cantidad: number; movimientos: number }>();
-    
-    movimientosFiltrados.forEach(mov => {
-      const existencia = existencias.find(e => e.id_existencia === mov.id_existencia);
-      if (existencia) {
-        const current = consumoPorMedicamento.get(existencia.id_medicamento) || { cantidad: 0, movimientos: 0 };
-        consumoPorMedicamento.set(existencia.id_medicamento, {
-          cantidad: current.cantidad + mov.cantidad,
-          movimientos: current.movimientos + 1,
-        });
-      }
-    });
-    
-    // Construir reporte
-    const reporte: ReporteConsumo[] = [];
-    consumoPorMedicamento.forEach((datos, id_medicamento) => {
-      const medicamento = medicamentos.find(m => m.id_medicamento === id_medicamento);
-      if (medicamento) {
-        reporte.push({
-          nombre_medicamento: medicamento.nombre,
-          tipo_medicamento: medicamento.tipo_medicamento,
-          cantidad_total: datos.cantidad,
-          num_movimientos: datos.movimientos,
-        });
-      }
-    });
-    
-    return reporte.sort((a, b) => b.cantidad_total - a.cantidad_total);
-  },
-  
-  // Resetear datos
-  resetData(): void {
-    saveToStorage('medicamentos', initialMedicamentos);
-    saveToStorage('existencias', initialExistencias);
-    saveToStorage('movimientos', initialMovimientos);
-    saveToStorage('usuarios', initialUsuarios);
-  },
+  }
 };

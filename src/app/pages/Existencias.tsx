@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { storage } from '../data/storage';
 import { Existencia, Medicamento } from '../types';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -21,12 +22,11 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
-import { Plus, Package, Calendar, Hash } from 'lucide-react';
+import { Plus, Package, Calendar, Hash, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function Existencias() {
-  const [existencias, setExistencias] = useState<Existencia[]>([]);
-  const [medicamentos, setMedicamentos] = useState<Medicamento[]>([]);
+  const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -36,75 +36,73 @@ export function Existencias() {
     cantidad_actual: '',
     fecha_registro: new Date().toISOString().split('T')[0],
   });
-  
-  useEffect(() => {
-    loadData();
-  }, []);
-  
-  const loadData = () => {
-    setExistencias(storage.getExistencias());
-    setMedicamentos(storage.getMedicamentos().filter(m => m.activo));
-  };
-  
-  const getMedicamentoNombre = (id: number) => {
-    return medicamentos.find(m => m.id_medicamento === id)?.nombre || 'Desconocido';
-  };
-  
+
+  // --- CARGA DE DATOS ASÍNCRONA ---
+  const { data: existencias = [], isLoading: loadingEx } = useQuery({
+    queryKey: ['existencias'],
+    queryFn: () => storage.getExistencias(),
+  });
+
+  const { data: medicamentos = [], isLoading: loadingMeds } = useQuery({
+    queryKey: ['medicamentos'],
+    queryFn: () => storage.getMedicamentos(),
+  });
+
+  // --- MUTACIÓN PARA REGISTRAR EXISTENCIA ---
+  const mutation = useMutation({
+    mutationFn: async (newData: any) => {
+      // 1. Guardar la existencia
+      const existencia = await storage.saveExistencia(newData);
+      
+      // 2. Registrar el movimiento de entrada inicial (con el id_usuario 1 por defecto para el prototipo)
+      await storage.registrarMovimiento(
+        existencia.id_existencia,
+        'entrada',
+        newData.cantidad_actual,
+        1, 
+        'Registro inicial de existencia'
+      );
+      return existencia;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['existencias'] });
+      queryClient.invalidateQueries({ queryKey: ['movimientos'] });
+      queryClient.invalidateQueries({ queryKey: ['inventario'] });
+      toast.success('Existencia y movimiento inicial registrados');
+      closeDialog();
+    },
+    onError: () => toast.error('Error al conectar con el servidor central'),
+  });
+
   const getMedicamentoInfo = (id: number) => {
     return medicamentos.find(m => m.id_medicamento === id);
   };
-  
+
   const filteredExistencias = existencias.filter(e => {
-    if (!searchTerm) return true;
     const med = getMedicamentoInfo(e.id_medicamento);
+    const term = searchTerm.toLowerCase();
     return (
-      getMedicamentoNombre(e.id_medicamento).toLowerCase().includes(searchTerm.toLowerCase()) ||
-      e.codigo_referencia.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      med?.tipo_medicamento.toLowerCase().includes(searchTerm.toLowerCase())
+      med?.nombre.toLowerCase().includes(term) ||
+      e.codigo_referencia.toLowerCase().includes(term) ||
+      med?.tipo_medicamento.toLowerCase().includes(term)
     );
   });
-  
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (!formData.id_medicamento || !formData.codigo_referencia || !formData.cantidad_actual) {
-      toast.error('Por favor complete todos los campos requeridos');
+      toast.error('Complete los campos obligatorios');
       return;
     }
-    
-    // Verificar si ya existe el código de referencia
-    const existe = existencias.find(e => e.codigo_referencia === formData.codigo_referencia);
-    if (existe) {
-      toast.error('El código de referencia ya existe');
-      return;
-    }
-    
-    storage.saveExistencia({
+
+    mutation.mutate({
       id_medicamento: parseInt(formData.id_medicamento),
       codigo_referencia: formData.codigo_referencia,
       cantidad_actual: parseInt(formData.cantidad_actual),
       fecha_registro: formData.fecha_registro,
     });
-    
-    // Registrar movimiento de entrada automáticamente
-    const existenciaCreada = storage.getExistencias().find(
-      e => e.codigo_referencia === formData.codigo_referencia
-    );
-    
-    if (existenciaCreada) {
-      storage.registrarMovimiento(
-        existenciaCreada.id_existencia,
-        'entrada',
-        parseInt(formData.cantidad_actual),
-        'Registro inicial de existencia'
-      );
-    }
-    
-    toast.success('Existencia registrada correctamente');
-    loadData();
-    closeDialog();
   };
-  
+
   const openDialog = () => {
     setFormData({
       id_medicamento: '',
@@ -114,27 +112,32 @@ export function Existencias() {
     });
     setIsDialogOpen(true);
   };
-  
-  const closeDialog = () => {
-    setIsDialogOpen(false);
-  };
-  
+
+  const closeDialog = () => setIsDialogOpen(false);
+
   // Agrupar existencias por medicamento
   const existenciasPorMedicamento = filteredExistencias.reduce((acc, existencia) => {
     const medId = existencia.id_medicamento;
-    if (!acc[medId]) {
-      acc[medId] = [];
-    }
+    if (!acc[medId]) acc[medId] = [];
     acc[medId].push(existencia);
     return acc;
   }, {} as Record<number, Existencia[]>);
-  
+
+  if (loadingEx || loadingMeds) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 space-y-4">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+        <p className="text-gray-500">Sincronizando lotes con PostgreSQL...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-semibold text-gray-900">Control de Existencias</h2>
-          <p className="text-gray-600 mt-1">Gestión de lotes y referencias de medicamentos</p>
+          <p className="text-gray-600 mt-1">Gestión de lotes en tilinescraft.serveminecraft.net</p>
         </div>
         <Button onClick={openDialog} className="flex items-center gap-2">
           <Plus className="w-4 h-4" />
@@ -142,21 +145,17 @@ export function Existencias() {
         </Button>
       </div>
       
-      {/* Búsqueda */}
       <Card>
         <CardContent className="pt-6">
-          <div>
-            <Label>Buscar</Label>
-            <Input
-              placeholder="Buscar por medicamento, lote o tipo..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
+          <Label>Buscar lote o medicina</Label>
+          <Input
+            placeholder="Ej: LOTE-2026 o Paracetamol..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
         </CardContent>
       </Card>
       
-      {/* Existencias agrupadas por medicamento */}
       {Object.entries(existenciasPorMedicamento).map(([medId, exs]) => {
         const medicamento = getMedicamentoInfo(parseInt(medId));
         if (!medicamento) return null;
@@ -165,31 +164,23 @@ export function Existencias() {
         const bajoStock = cantidadTotal <= medicamento.stock_minimo;
         
         return (
-          <Card key={medId}>
-            <CardHeader>
+          <Card key={medId} className={bajoStock ? "border-red-200" : ""}>
+            <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#ECD2D1' }}>
-                    <Package className="w-5 h-5" style={{ color: '#6DA2B3' }} />
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-slate-100">
+                    <Package className="w-5 h-5 text-blue-500" />
                   </div>
                   <div>
                     <CardTitle className="text-lg">{medicamento.nombre}</CardTitle>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="outline">{medicamento.tipo_medicamento}</Badge>
-                      <span className="text-sm" style={{ color: '#A5867A' }}>{medicamento.concentracion}</span>
-                    </div>
+                    <Badge variant="outline" className="mt-1">{medicamento.tipo_medicamento}</Badge>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm" style={{ color: '#A5867A' }}>Total en existencia</p>
-                  <p className="text-2xl font-semibold" style={{ color: bajoStock ? '#96453B' : '#6DA2B3' }}>
+                  <p className="text-2xl font-bold" style={{ color: bajoStock ? '#96453B' : '#22c55e' }}>
                     {cantidadTotal}
                   </p>
-                  {bajoStock && (
-                    <Badge variant="destructive" className="mt-1">
-                      Bajo stock mínimo
-                    </Badge>
-                  )}
+                  {bajoStock && <Badge variant="destructive">Stock Crítico</Badge>}
                 </div>
               </div>
             </CardHeader>
@@ -197,36 +188,19 @@ export function Existencias() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>ID Existencia</TableHead>
-                    <TableHead>Código de Referencia</TableHead>
-                    <TableHead>Cantidad Actual</TableHead>
+                    <TableHead>Lote / Referencia</TableHead>
+                    <TableHead>Cantidad</TableHead>
                     <TableHead>Fecha Registro</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {exs.map((existencia) => (
-                    <TableRow key={existencia.id_existencia}>
-                      <TableCell className="font-medium">#{existencia.id_existencia}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Hash className="w-4 h-4 text-gray-400" />
-                          <span className="font-mono text-sm">{existencia.codigo_referencia}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <span className={`font-semibold ${
-                          existencia.cantidad_actual === 0 ? 'text-gray-400' : 'text-gray-900'
-                        }`}>
-                          {existencia.cantidad_actual}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2 text-gray-600">
-                          <Calendar className="w-4 h-4" />
-                          <span className="text-sm">
-                            {new Date(existencia.fecha_registro).toLocaleDateString('es-ES')}
-                          </span>
-                        </div>
+                  {exs.map((e) => (
+                    <TableRow key={e.id_existencia}>
+                      <TableCell className="font-mono text-sm"><Hash className="inline w-3 h-3 mr-1"/>{e.codigo_referencia}</TableCell>
+                      <TableCell className="font-semibold">{e.cantidad_actual}</TableCell>
+                      <TableCell className="text-slate-500 text-sm">
+                        <Calendar className="inline w-3 h-3 mr-1"/>
+                        {new Date(e.fecha_registro).toLocaleDateString()}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -236,89 +210,37 @@ export function Existencias() {
           </Card>
         );
       })}
-      
-      {filteredExistencias.length === 0 && (
-        <Card>
-          <CardContent className="py-12">
-            <div className="text-center text-gray-500">
-              <Package className="w-12 h-12 mx-auto mb-3 opacity-30" />
-              <p>No se encontraron existencias</p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-      
-      {/* Dialog para nueva existencia */}
+
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Registrar Nueva Existencia</DialogTitle>
-          </DialogHeader>
-          
+        <DialogContent>
+          <DialogHeader><DialogTitle>Nuevo Lote de Existencia</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <Label htmlFor="medicamento">Medicamento *</Label>
-              <Select
-                value={formData.id_medicamento}
-                onValueChange={(value) => setFormData({ ...formData, id_medicamento: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccione un medicamento" />
-                </SelectTrigger>
+              <Label>Medicamento</Label>
+              <Select onValueChange={(v) => setFormData({...formData, id_medicamento: v})}>
+                <SelectTrigger><SelectValue placeholder="Seleccione..." /></SelectTrigger>
                 <SelectContent>
-                  {medicamentos.map(med => (
+                  {medicamentos.filter(m => m.activo).map(med => (
                     <SelectItem key={med.id_medicamento} value={med.id_medicamento.toString()}>
-                      {med.nombre} - {med.concentracion}
+                      {med.nombre} ({med.concentracion})
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            
-            <div>
-              <Label htmlFor="codigo_referencia">Código de Referencia/Lote *</Label>
-              <Input
-                id="codigo_referencia"
-                value={formData.codigo_referencia}
-                onChange={(e) => setFormData({ ...formData, codigo_referencia: e.target.value })}
-                placeholder="Ej: LOTE-2026-001"
-                required
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Identificador único del lote, donación o compra
-              </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Código Lote</Label>
+                <Input value={formData.codigo_referencia} onChange={e => setFormData({...formData, codigo_referencia: e.target.value})} required />
+              </div>
+              <div className="space-y-2">
+                <Label>Cantidad</Label>
+                <Input type="number" value={formData.cantidad_actual} onChange={e => setFormData({...formData, cantidad_actual: e.target.value})} required />
+              </div>
             </div>
-            
-            <div>
-              <Label htmlFor="cantidad">Cantidad Inicial *</Label>
-              <Input
-                id="cantidad"
-                type="number"
-                value={formData.cantidad_actual}
-                onChange={(e) => setFormData({ ...formData, cantidad_actual: e.target.value })}
-                placeholder="Ej: 100"
-                min="0"
-                required
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="fecha">Fecha de Registro</Label>
-              <Input
-                id="fecha"
-                type="date"
-                value={formData.fecha_registro}
-                onChange={(e) => setFormData({ ...formData, fecha_registro: e.target.value })}
-                required
-              />
-            </div>
-            
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={closeDialog}>
-                Cancelar
-              </Button>
-              <Button type="submit">
-                Registrar
+              <Button type="submit" disabled={mutation.isPending}>
+                {mutation.isPending ? 'Procesando...' : 'Registrar Lote'}
               </Button>
             </DialogFooter>
           </form>
