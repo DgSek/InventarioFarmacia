@@ -32,12 +32,12 @@ export function Medicamentos() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterTipo, setFilterTipo] = useState<string>('todos');
 
-  // Estado del formulario actualizado con el campo de código de barras
+  // Estado del formulario unificado con codigo_barras
   const [formData, setFormData] = useState({
     nombre: '',
     tipo_medicamento: '',
     concentracion: '',
-    codigo_referencia: '', // Usado para Código de Barras
+    codigo_barras: '', 
     stock_minimo: '',
     ubicacion: '',
     estante: '',
@@ -47,7 +47,11 @@ export function Medicamentos() {
   // --- CARGA DE DATOS ASÍNCRONA ---
   const { data: medicamentos = [], isLoading } = useQuery({
     queryKey: ['medicamentos'],
-    queryFn: () => storage.getMedicamentos(),
+    queryFn: async () => {
+      const data = await storage.getMedicamentos();
+      // Garantizamos que siempre sea un arreglo para evitar errores de .filter
+      return Array.isArray(data) ? data : [];
+    },
   });
 
   const { data: inventario = [] } = useQuery({
@@ -72,7 +76,7 @@ export function Medicamentos() {
     },
   });
 
-  // --- LÓGICA DE FILTRADO (Ahora busca por nombre, tipo y código de barras) ---
+  // --- LÓGICA DE FILTRADO ---
   const filteredMedicamentos = medicamentos.filter(m => {
     const term = searchTerm.toLowerCase();
     const matchesSearch = 
@@ -89,7 +93,7 @@ export function Medicamentos() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.nombre || !formData.tipo_medicamento || !formData.codigo_referencia) {
+    if (!formData.nombre || !formData.tipo_medicamento || !formData.codigo_barras) {
       toast.error('Nombre, Categoría y Código de Barras son obligatorios');
       return;
     }
@@ -110,7 +114,7 @@ export function Medicamentos() {
         nombre: medicamento.nombre,
         tipo_medicamento: medicamento.tipo_medicamento,
         concentracion: medicamento.concentracion,
-        codigo_referencia: medicamento.codigo_barras || '',
+        codigo_barras: medicamento.codigo_barras || '', 
         stock_minimo: medicamento.stock_minimo.toString(),
         ubicacion: medicamento.ubicacion,
         estante: medicamento.estante || '',
@@ -122,7 +126,7 @@ export function Medicamentos() {
         nombre: '',
         tipo_medicamento: '',
         concentracion: '',
-        codigo_referencia: '',
+        codigo_barras: '',
         stock_minimo: '0',
         ubicacion: '',
         estante: '',
@@ -159,7 +163,6 @@ export function Medicamentos() {
         </Button>
       </div>
 
-      {/* Buscador y Filtros */}
       <Card className="border-none shadow-sm bg-slate-50/50">
         <CardContent className="pt-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -191,7 +194,6 @@ export function Medicamentos() {
         </CardContent>
       </Card>
 
-      {/* Tabla Principal */}
       <Card className="shadow-sm border-slate-200">
         <CardHeader className="border-b bg-slate-50/30">
           <CardTitle className="text-lg text-slate-700 flex items-center gap-2">
@@ -259,7 +261,6 @@ export function Medicamentos() {
         </CardContent>
       </Card>
 
-      {/* Modal de Registro/Edición */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -270,7 +271,6 @@ export function Medicamentos() {
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 pt-4">
             
-            {/* Campo Prioritario: Código de Barras */}
             <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2">
               <Label htmlFor="codigo" className="text-slate-700 font-bold flex items-center gap-2">
                 <Barcode className="w-4 h-4" /> Código de Barras (Referencia)
@@ -279,8 +279,8 @@ export function Medicamentos() {
                 id="codigo" 
                 placeholder="Escanee el producto..." 
                 className="bg-white"
-                value={formData.codigo_referencia} 
-                onChange={(e) => setFormData({ ...formData, codigo_referencia: e.target.value })} 
+                value={formData.codigo_barras} 
+                onChange={(e) => setFormData({ ...formData, codigo_barras: e.target.value })} 
                 autoFocus 
               />
             </div>
@@ -302,7 +302,7 @@ export function Medicamentos() {
                 <Label htmlFor="concentracion">Concentración</Label>
                 <div className="relative">
                   <Beaker className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-                  <Input id="concentracion" className="pl-10" placeholder="500 mg" value={formData.concentracion} onChange={(e) => setFormData({ ...formData, concentracion: e.target.value })} required />
+                  <Input id="concentracion" className="pl-10" placeholder="Ej: 500 mg" value={formData.concentracion} onChange={(e) => setFormData({ ...formData, concentracion: e.target.value })} required />
                 </div>
               </div>
             </div>

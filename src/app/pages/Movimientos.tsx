@@ -254,7 +254,7 @@ export function Movimientos() {
                 <SelectContent>
                   {existencias.map(ex => (
                     <SelectItem key={ex.id_existencia} value={ex.id_existencia.toString()}>
-                      {getMedicamentoNombre(ex.id_existencia)} - {ex.codigo_referencia} (Disp: {ex.cantidad_actual})
+                      {getMedicamentoNombre(ex.id_existencia)} - {ex.codigo_barras} (Disp: {ex.cantidad_actual})
                     </SelectItem>
                   ))}
                 </SelectContent>

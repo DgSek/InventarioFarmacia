@@ -15,7 +15,7 @@ export interface Medicamento {
 export interface Existencia {
   id_existencia: number;
   id_medicamento: number;
-  codigo_referencia: string;
+  codigo_barras: string;
   cantidad_actual: number;
   fecha_registro: string;
 }
@@ -44,6 +44,7 @@ export interface Alerta {
   stock_minimo: number;
   tipo_medicamento: string;
   ubicacion: string;
+  estante?: string;
 }
 
 export interface ReporteConsumo {
