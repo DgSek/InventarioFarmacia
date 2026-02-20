@@ -72,7 +72,6 @@ export function Reportes() {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-semibold text-gray-900">Reportes y Estadísticas</h2>
-          <p className="text-gray-600 mt-1">Análisis histórico en tilinescraft.serveminecraft.net</p>
         </div>
       </div>
 

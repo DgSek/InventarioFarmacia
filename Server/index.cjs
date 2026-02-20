@@ -28,18 +28,16 @@ pool.query('SELECT NOW()', (err, res) => {
 
 // --- RUTAS DE MEDICAMENTOS ---
 
-// Obtener todos los medicamentos
 app.get('/api/medicamentos', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM Medicamentos ORDER BY nombre ASC');
-    res.json(result.rows || []); // Siempre retornar un arreglo para evitar errores en React
+    res.json(result.rows || []); 
   } catch (err) {
     console.error(err.message);
     res.status(500).json({ error: 'Error al obtener medicamentos' });
   }
 });
 
-// Crear nuevo medicamento (Incluyendo código de barras y estante)
 app.post('/api/medicamentos', async (req, res) => {
   const { nombre, tipo_medicamento, concentracion, stock_minimo, ubicacion, estante, codigo_barras, activo } = req.body;
   try {
@@ -56,7 +54,6 @@ app.post('/api/medicamentos', async (req, res) => {
   }
 });
 
-// Actualizar medicamento existente
 app.put('/api/medicamentos/:id', async (req, res) => {
   const { id } = req.params;
   const { nombre, tipo_medicamento, concentracion, stock_minimo, ubicacion, estante, codigo_barras, activo } = req.body;
@@ -74,7 +71,7 @@ app.put('/api/medicamentos/:id', async (req, res) => {
   }
 });
 
-// --- RUTAS DE EXISTENCIAS (NUEVA: Necesaria para el escaneo rápido) ---
+// --- RUTAS DE EXISTENCIAS ---
 
 app.get('/api/existencias', async (req, res) => {
   try {
@@ -103,32 +100,42 @@ app.post('/api/existencias', async (req, res) => {
 
 app.get('/api/movimientos', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM Movimientos ORDER BY fecha_movimiento DESC');
+    const result = await pool.query('SELECT * FROM Movimientos ORDER BY fecha DESC'); 
     res.json(result.rows || []);
   } catch (err) {
+    console.error(err.message);
     res.status(500).json({ error: 'Error al obtener movimientos' });
   }
 });
 
 app.post('/api/movimientos', async (req, res) => {
   const { id_existencia, tipo_movimiento, cantidad, id_usuario, observaciones } = req.body;
+  
+  // NORMALIZACIÓN: Forzamos minúsculas para asegurar que el operador (+ o -) sea el correcto
+  const tipoMin = tipo_movimiento ? tipo_movimiento.toLowerCase() : ''; 
+  const operador = (tipoMin === 'entrada') ? '+' : '-';
+
   try {
     await pool.query('BEGIN');
+    
+    // 1. Insertar el movimiento en el historial
     const nuevoMovimiento = await pool.query(
       'INSERT INTO Movimientos (id_existencia, tipo_movimiento, cantidad, id_usuario, observaciones) VALUES ($1, $2, $3, $4, $5) RETURNING *',
       [id_existencia, tipo_movimiento, cantidad, id_usuario, observaciones]
     );
-    const operador = (tipo_movimiento === 'entrada') ? '+' : '-';
+
+    // 2. Actualizar la cantidad en la tabla de Existencias (Resta o Suma)
     await pool.query(
       `UPDATE Existencias SET cantidad_actual = cantidad_actual ${operador} $1 WHERE id_existencia = $2`,
       [cantidad, id_existencia]
     );
+
     await pool.query('COMMIT');
     res.json(nuevoMovimiento.rows[0]);
   } catch (err) {
     await pool.query('ROLLBACK');
-    console.error(err.message);
-    res.status(500).json({ error: 'Error al procesar el movimiento' });
+    console.error("❌ Error en la transacción de movimiento:", err.message);
+    res.status(500).json({ error: 'Error al procesar el movimiento y actualizar el stock' });
   }
 });
 
