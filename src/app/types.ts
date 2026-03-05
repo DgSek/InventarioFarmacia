@@ -15,7 +15,7 @@ export interface Medicamento {
 export interface Existencia {
   id_existencia: number;
   id_medicamento: number;
-  codigo_barras: string;
+  codigo_referencia: string;
   cantidad_actual: number;
   fecha_registro: string;
 }

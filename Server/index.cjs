@@ -82,17 +82,28 @@ app.get('/api/existencias', async (req, res) => {
   }
 });
 
+// Server/index.cjs
+
 app.post('/api/existencias', async (req, res) => {
-  const { id_medicamento, codigo_barras, cantidad_actual, fecha_registro } = req.body;
+  const { id_medicamento, codigo_referencia, cantidad_actual, fecha_registro } = req.body;
+
   try {
+    // La magia está en "ON CONFLICT": si el código de lote ya existe, 
+    // en lugar de dar error, suma la nueva cantidad a la que ya había.
     const result = await pool.query(
-      'INSERT INTO Existencias (id_medicamento, codigo_barras, cantidad_actual, fecha_registro) VALUES ($1, $2, $3, $4) RETURNING *',
-      [id_medicamento, codigo_barras, cantidad_actual, fecha_registro]
+      `INSERT INTO Existencias (id_medicamento, codigo_referencia, cantidad_actual, fecha_registro) 
+       VALUES ($1, $2, $3, $4) 
+       ON CONFLICT (codigo_referencia) 
+       DO UPDATE SET cantidad_actual = Existencias.cantidad_actual + EXCLUDED.cantidad_actual
+       RETURNING *`,
+      [id_medicamento, codigo_referencia, cantidad_actual, fecha_registro]
     );
+    
+    console.log(`✅ Lote ${codigo_referencia} procesado correctamente.`);
     res.json(result.rows[0]);
   } catch (err) {
-    console.error(err.message);
-    res.status(500).json({ error: 'Error al crear existencia' });
+    console.error("❌ Error grave en servidor:", err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -111,20 +122,17 @@ app.get('/api/movimientos', async (req, res) => {
 app.post('/api/movimientos', async (req, res) => {
   const { id_existencia, tipo_movimiento, cantidad, id_usuario, observaciones } = req.body;
   
-  // NORMALIZACIÓN: Forzamos minúsculas para asegurar que el operador (+ o -) sea el correcto
   const tipoMin = tipo_movimiento ? tipo_movimiento.toLowerCase() : ''; 
   const operador = (tipoMin === 'entrada') ? '+' : '-';
 
   try {
     await pool.query('BEGIN');
     
-    // 1. Insertar el movimiento en el historial
     const nuevoMovimiento = await pool.query(
       'INSERT INTO Movimientos (id_existencia, tipo_movimiento, cantidad, id_usuario, observaciones) VALUES ($1, $2, $3, $4, $5) RETURNING *',
       [id_existencia, tipo_movimiento, cantidad, id_usuario, observaciones]
     );
 
-    // 2. Actualizar la cantidad en la tabla de Existencias (Resta o Suma)
     await pool.query(
       `UPDATE Existencias SET cantidad_actual = cantidad_actual ${operador} $1 WHERE id_existencia = $2`,
       [cantidad, id_existencia]
@@ -150,5 +158,5 @@ app.get('/api/usuarios', async (req, res) => {
 });
 
 app.listen(5000, () => {
-  console.log('✅ Servidor corriendo en el puerto 5000');
+  console.log('✅ Servidor sincronizado y corriendo en el puerto 5000');
 });

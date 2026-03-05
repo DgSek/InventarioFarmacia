@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { storage } from '../data/storage';
 import { Movimiento, Existencia, Medicamento, TipoMovimiento } from '../types';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -28,15 +28,25 @@ import { toast } from 'sonner';
 
 export function Movimientos() {
   const queryClient = useQueryClient();
+  const inputRef = useRef<HTMLInputElement>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [filterTipo, setFilterTipo] = useState<string>('todos');
-  
+  const [scanBuffer, setScanBuffer] = useState('');
+  const [selectedMedId, setSelectedMedId] = useState<number | null>(null);
+
   const [formData, setFormData] = useState({
     id_existencia: '',
-    tipo_movimiento: 'salida' as TipoMovimiento, // Por defecto salida (venta/dispensación)
+    tipo_movimiento: 'salida' as TipoMovimiento,
     cantidad: '',
     observaciones: '',
   });
+
+  // --- AUTO-FOCUS ---
+  useEffect(() => {
+    if (isDialogOpen) {
+      setTimeout(() => inputRef.current?.focus(), 100);
+    }
+  }, [isDialogOpen]);
 
   // --- CARGA DE DATOS ---
   const { data: movimientos = [], isLoading: loadingMovs } = useQuery({
@@ -74,24 +84,46 @@ export function Movimientos() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['movimientos'] });
       queryClient.invalidateQueries({ queryKey: ['existencias'] });
-      queryClient.invalidateQueries({ queryKey: ['medicamentos'] });
       queryClient.invalidateQueries({ queryKey: ['inventario-completo'] });
       toast.success('Movimiento registrado correctamente');
       closeDialog();
     },
-    onError: () => toast.error('Error al registrar en el servidor central'),
+    onError: () => toast.error('Error al registrar movimiento'),
   });
+
+  // --- ESCANEO ---
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      const barcode = scanBuffer.trim();
+      const medEncontrado = medicamentos.find(m => m.codigo_barras === barcode);
+      
+      if (medEncontrado) {
+        setSelectedMedId(medEncontrado.id_medicamento);
+        toast.success(`Medicamento: ${medEncontrado.nombre}`);
+        const loteConStock = existencias.find(ex => 
+          ex.id_medicamento === medEncontrado.id_medicamento && ex.cantidad_actual > 0
+        );
+        if (loteConStock) {
+          setFormData(prev => ({ ...prev, id_existencia: loteConStock.id_existencia.toString() }));
+        }
+      } else {
+        toast.error('Código no encontrado');
+        setSelectedMedId(null);
+      }
+      setScanBuffer('');
+    }
+  };
 
   const getMedicamentoNombre = (idExistencia: number) => {
     const ex = existencias.find(e => e.id_existencia === idExistencia);
-    if (!ex) return 'Cargando...';
+    if (!ex) return '---';
     const med = medicamentos.find(m => m.id_medicamento === ex.id_medicamento);
     return med ? `${med.nombre} (${med.concentracion})` : 'No encontrado';
   };
 
-  const filteredMovimientos = movimientos
-    .filter(m => filterTipo === 'todos' || m.tipo_movimiento === filterTipo)
-    .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+  const lotesFiltrados = selectedMedId 
+    ? existencias.filter(ex => ex.id_medicamento === selectedMedId)
+    : existencias;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,23 +132,13 @@ export function Movimientos() {
     const exActual = existencias.find(e => e.id_existencia === exId);
 
     if (!exId || isNaN(cant)) {
-      toast.error('Seleccione un lote y cantidad válida');
+      toast.error('Seleccione un lote válido');
       return;
     }
 
-    // --- NUEVA LÓGICA DE VALIDACIÓN DE STOCK CERO ---
-    if (formData.tipo_movimiento !== 'entrada') {
-      // 1. Bloqueo total si el stock es 0
-      if (!exActual || exActual.cantidad_actual <= 0) {
-        toast.error('No se puede realizar una salida: El stock actual es 0');
-        return;
-      }
-
-      // 2. Bloqueo si la cantidad solicitada supera lo disponible
-      if (exActual.cantidad_actual < cant) {
-        toast.error(`Stock insuficiente. Disponible: ${exActual.cantidad_actual}`);
-        return;
-      }
+    if (formData.tipo_movimiento !== 'entrada' && exActual && exActual.cantidad_actual < cant) {
+      toast.error(`Stock insuficiente. Disponible: ${exActual.cantidad_actual}`);
+      return;
     }
 
     mutation.mutate({
@@ -131,29 +153,25 @@ export function Movimientos() {
   const closeDialog = () => {
     setIsDialogOpen(false);
     setFormData({ id_existencia: '', tipo_movimiento: 'salida', cantidad: '', observaciones: '' });
+    setScanBuffer('');
+    setSelectedMedId(null);
   };
 
-  if (loadingMovs) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64 space-y-4">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-        <p className="text-gray-500 font-medium">Sincronizando transacciones...</p>
-      </div>
-    );
-  }
+  if (loadingMovs) return <div className="p-10 flex justify-center"><Loader2 className="animate-spin" /></div>;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-semibold text-gray-900">Historial de Movimientos</h2>
-          <p className="text-gray-600 mt-1">Auditoría de entradas y salidas de almacén</p>
+          <p className="text-gray-600 mt-1">Auditoría de inventario en tiempo real</p>
         </div>
         <Button onClick={() => setIsDialogOpen(true)} className="bg-blue-600">
           <Plus className="w-4 h-4 mr-2" /> Nuevo Registro
         </Button>
       </div>
 
+      {/* --- ESTA ES LA SECCIÓN QUE SE HABÍA BORRADO --- */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="md:col-span-1">
           <CardContent className="pt-6">
@@ -193,7 +211,7 @@ export function Movimientos() {
           <Table>
             <TableHeader className="bg-slate-50">
               <TableRow>
-                <TableHead>Fecha y Hora</TableHead>
+                <TableHead>Fecha</TableHead>
                 <TableHead>Insumo / Medicamento</TableHead>
                 <TableHead>Operación</TableHead>
                 <TableHead>Cantidad</TableHead>
@@ -201,34 +219,32 @@ export function Movimientos() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredMovimientos.map((m) => (
+              {movimientos
+                .filter(m => filterTipo === 'todos' || m.tipo_movimiento === filterTipo)
+                .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
+                .map((m) => (
                 <TableRow key={m.id_movimiento}>
-                  <TableCell className="text-xs font-mono text-slate-500">
-                    <Calendar className="inline w-3 h-3 mr-1 text-slate-400" />
-                    {new Date(m.fecha).toLocaleString()}
-                  </TableCell>
+                  <TableCell className="text-xs font-mono">{new Date(m.fecha).toLocaleString()}</TableCell>
                   <TableCell>
                     <div className="flex flex-col">
                       <span className="font-medium text-slate-900">{getMedicamentoNombre(m.id_existencia)}</span>
-                      <span className="text-[10px] text-slate-400 italic truncate max-w-[150px]">
-                        {m.observaciones || 'Sin observaciones'}
-                      </span>
+                      <span className="text-[10px] text-slate-400 italic truncate max-w-[150px]">{m.observaciones}</span>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline" className="capitalize bg-white shadow-sm">
+                    <Badge variant="outline" className="capitalize bg-white">
                       {m.tipo_movimiento === 'entrada' ? <ArrowUpCircle className="w-3 h-3 mr-1 text-emerald-500" /> : 
                        m.tipo_movimiento === 'salida' ? <ArrowDownCircle className="w-3 h-3 mr-1 text-blue-500" /> :
                        <XCircle className="w-3 h-3 mr-1 text-red-500" />}
                       {m.tipo_movimiento}
                     </Badge>
                   </TableCell>
-                  <TableCell className={`font-bold ${m.tipo_movimiento === 'entrada' ? 'text-emerald-600' : 'text-blue-600'}`}>
+                  <TableCell className={m.tipo_movimiento === 'entrada' ? 'text-emerald-600 font-bold' : 'text-blue-600 font-bold'}>
                     {m.tipo_movimiento === 'entrada' ? '+' : '-'}{m.cantidad}
                   </TableCell>
                   <TableCell className="text-xs text-slate-600">
                     <User className="inline w-3 h-3 mr-1" />
-                    {usuarioActual?.nombre_usuario || 'Cargando...'}
+                    {usuarioActual?.nombre_usuario || 'Sistema'}
                   </TableCell>
                 </TableRow>
               ))}
@@ -241,9 +257,22 @@ export function Movimientos() {
         <DialogContent className="sm:max-w-[450px]">
           <DialogHeader><DialogTitle>Nuevo Movimiento de Stock</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+            
+            <div className="bg-blue-50 p-3 rounded-lg border-2 border-dashed border-blue-300 space-y-2">
+              <Label className="flex items-center gap-2 text-blue-800 font-bold"><Barcode className="w-4 h-4" /> Escanee el producto</Label>
+              <Input 
+                ref={inputRef}
+                placeholder="Escanee el código de barras..."
+                value={scanBuffer}
+                onChange={(e) => setScanBuffer(e.target.value)}
+                onKeyDown={handleKeyDown}
+                className="bg-white"
+              />
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Tipo de Operación</Label>
+                <Label>Tipo</Label>
                 <Select value={formData.tipo_movimiento} onValueChange={(v: TipoMovimiento) => setFormData({...formData, tipo_movimiento: v})}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -260,13 +289,13 @@ export function Movimientos() {
             </div>
 
             <div className="space-y-2">
-              <Label className="flex items-center gap-2"><Barcode className="w-4 h-4 text-blue-500" /> Seleccionar Lote / Existencia</Label>
-              <Select onValueChange={(v) => setFormData({...formData, id_existencia: v})}>
-                <SelectTrigger className="bg-slate-50"><SelectValue placeholder="Busque por código o nombre..." /></SelectTrigger>
+              <Label>Lote / Existencia {selectedMedId && "(Filtrado)"}</Label>
+              <Select value={formData.id_existencia} onValueChange={(v) => setFormData({...formData, id_existencia: v})}>
+                <SelectTrigger className={selectedMedId ? "bg-blue-50 border-blue-400" : ""}><SelectValue placeholder="Seleccione lote..." /></SelectTrigger>
                 <SelectContent>
-                  {existencias.map(ex => (
+                  {lotesFiltrados.map(ex => (
                     <SelectItem key={ex.id_existencia} value={ex.id_existencia.toString()}>
-                      {getMedicamentoNombre(ex.id_existencia)} - [{ex.codigo_barras}] (Disp: {ex.cantidad_actual})
+                      {getMedicamentoNombre(ex.id_existencia)} - [{ex.codigo_referencia}] (Stock: {ex.cantidad_actual})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -274,18 +303,13 @@ export function Movimientos() {
             </div>
 
             <div className="space-y-2">
-              <Label>Notas / Observaciones</Label>
-              <Textarea 
-                placeholder="Motivo del movimiento..." 
-                value={formData.observaciones} 
-                onChange={e => setFormData({...formData, observaciones: e.target.value})} 
-              />
+              <Label>Observaciones</Label>
+              <Textarea placeholder="Motivo..." value={formData.observaciones} onChange={e => setFormData({...formData, observaciones: e.target.value})} />
             </div>
 
-            <DialogFooter className="bg-slate-50 -mx-6 -mb-6 p-4 rounded-b-lg mt-4">
+            <DialogFooter>
               <Button type="submit" className="w-full bg-blue-600" disabled={mutation.isPending}>
-                {mutation.isPending ? <Loader2 className="animate-spin mr-2" /> : null}
-                Confirmar Registro
+                {mutation.isPending ? <Loader2 className="animate-spin mr-2" /> : "Confirmar Registro"}
               </Button>
             </DialogFooter>
           </form>

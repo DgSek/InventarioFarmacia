@@ -9,7 +9,6 @@ import {
   ReporteConsumo,
 } from '../types';
 
-// URL base de tu API (Node.js/Express)
 const API_URL = 'http://localhost:5000/api';
 
 export const storage = {
@@ -17,7 +16,6 @@ export const storage = {
   async getMedicamentos(): Promise<Medicamento[]> {
     const response = await fetch(`${API_URL}/medicamentos`);
     const data = await response.json();
-    // Forzamos que retorne un arreglo para evitar el error .filter de la pantalla blanca
     return Array.isArray(data) ? data : [];
   },
 
@@ -25,13 +23,11 @@ export const storage = {
     const response = await fetch(`${API_URL}/medicamentos`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      // El objeto 'medicamento' ya debe traer codigo_barras desde el formulario
       body: JSON.stringify(medicamento),
     });
     return await response.json();
   },
 
-  // En src/data/storage.ts
   async updateMedicamento(medicamento: Medicamento): Promise<Medicamento> {
     const response = await fetch(`${API_URL}/medicamentos/${medicamento.id_medicamento}`, {
       method: 'PUT',
@@ -44,14 +40,23 @@ export const storage = {
   // --- EXISTENCIAS ---
   async getExistencias(): Promise<Existencia[]> {
     const response = await fetch(`${API_URL}/existencias`);
-    return await response.json();
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
   },
 
   async saveExistencia(existencia: Omit<Existencia, 'id_existencia'>): Promise<Existencia> {
+    // CORRECCIÓN: Aseguramos que se envíe 'codigo_referencia' al servidor de Ubuntu
+    const payload = {
+      id_medicamento: existencia.id_medicamento,
+      codigo_referencia: existencia.codigo_referencia, 
+      cantidad_actual: existencia.cantidad_actual,
+      fecha_registro: existencia.fecha_registro
+    };
+
     const response = await fetch(`${API_URL}/existencias`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(existencia),
+      body: JSON.stringify(payload),
     });
     return await response.json();
   },
@@ -59,14 +64,15 @@ export const storage = {
   // --- MOVIMIENTOS ---
   async getMovimientos(): Promise<Movimiento[]> {
     const response = await fetch(`${API_URL}/movimientos`);
-    return await response.json();
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
   },
 
   async registrarMovimiento(
     id_existencia: number,
     tipo_movimiento: TipoMovimiento,
     cantidad: number,
-    id_usuario: number, // Añadido para que coincida con tu tabla SQL
+    id_usuario: number,
     observaciones?: string
   ): Promise<Movimiento | null> {
     const response = await fetch(`${API_URL}/movimientos`, {
@@ -85,15 +91,12 @@ export const storage = {
     return await response.json();
   },
 
-
   async getInventarioCompleto() {
-    // Obtenemos los datos base del servidor
     const [medicamentos, existencias] = await Promise.all([
       this.getMedicamentos(),
       this.getExistencias()
     ]);
 
-    // Procesamos la lógica en el cliente para el prototipo
     return medicamentos.filter(m => m.activo).map(medicamento => {
       const existenciasMed = existencias.filter(e => e.id_medicamento === medicamento.id_medicamento);
       const cantidad_total = existenciasMed.reduce((sum, e) => sum + e.cantidad_actual, 0);
@@ -141,13 +144,11 @@ export const storage = {
   async getCurrentUser(): Promise<Usuario> {
     const response = await fetch(`${API_URL}/usuarios`);
     const usuarios = await response.json();
-    // Retornamos el primer usuario por defecto para el prototipo
-    return usuarios.find((u: any) => u.id_usuario === 1) || usuarios[0];
+    return usuarios.find((u: any) => u.id_usuario === 1) || usuarios[0] || { id_usuario: 1, nombre_usuario: 'Admin' };
   },
 
   async getAlertas(): Promise<Alerta[]> {
     const inventario = await this.getInventarioCompleto();
-
     return inventario
       .filter(item => item.cantidad_total <= item.medicamento.stock_minimo)
       .map(item => ({
@@ -157,6 +158,7 @@ export const storage = {
         stock_minimo: item.medicamento.stock_minimo,
         tipo_medicamento: item.medicamento.tipo_medicamento,
         ubicacion: item.medicamento.ubicacion,
+        estante: item.medicamento.estante
       }));
   }
 };
