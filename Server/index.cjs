@@ -83,11 +83,11 @@ app.get('/api/existencias', async (req, res) => {
 });
 
 app.post('/api/existencias', async (req, res) => {
-  const { id_medicamento, codigo_referencia, cantidad_actual, fecha_registro } = req.body;
+  const { id_medicamento, codigo_barras, cantidad_actual, fecha_registro } = req.body;
   try {
     const result = await pool.query(
-      'INSERT INTO Existencias (id_medicamento, codigo_referencia, cantidad_actual, fecha_registro) VALUES ($1, $2, $3, $4) RETURNING *',
-      [id_medicamento, codigo_referencia, cantidad_actual, fecha_registro]
+      'INSERT INTO Existencias (id_medicamento, codigo_barras, cantidad_actual, fecha_registro) VALUES ($1, $2, $3, $4) RETURNING *',
+      [id_medicamento, codigo_barras, cantidad_actual, fecha_registro]
     );
     res.json(result.rows[0]);
   } catch (err) {
