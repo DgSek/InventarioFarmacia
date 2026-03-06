@@ -15,7 +15,7 @@ export function Layout() {
   const alertas = storage.getAlertas();
   
   const navigation = [
-    { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+    { name: 'Panel de control', href: '/', icon: LayoutDashboard },
     { name: 'Medicamentos', href: '/medicamentos', icon: Package },
     { name: 'Existencias', href: '/existencias', icon: PackageOpen },
     { name: 'Movimientos', href: '/movimientos', icon: ArrowLeftRight },

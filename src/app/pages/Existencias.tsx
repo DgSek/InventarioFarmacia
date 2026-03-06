@@ -23,7 +23,7 @@ export function Existencias() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Estado inicial de escaneo
+  // Estado inicial limpio
   const [scanData, setScanData] = useState({
     codigo_barras_producto: '', 
     codigo_referencia: '',      
@@ -43,25 +43,40 @@ export function Existencias() {
     queryFn: () => storage.getMedicamentos(),
   });
 
-  // --- ESCANEO DE PRODUCTO (CATÁLOGO) ---
+  // --- ESCANEO REFORZADO: Busca en todo el catálogo fresco ---
   const handleScanProducto = (code: string) => {
-    const medEncontrado = medicamentos.find(m => m.codigo_barras === code);
+    const cleanCode = code.trim();
+    if (!cleanCode) return;
+
+    // Buscamos en la lista completa descargada de la DB
+    const medEncontrado = medicamentos.find(m => m.codigo_barras === cleanCode);
+
     if (medEncontrado) {
       setScanData({
-        ...scanData,
-        codigo_barras_producto: code,
+        codigo_barras_producto: cleanCode,
+        codigo_referencia: '', 
+        cantidad_actual: '',   
         id_medicamento: medEncontrado.id_medicamento,
         nombre_medicamento: medEncontrado.nombre
       });
       toast.success(`Producto detectado: ${medEncontrado.nombre}`);
     } else {
-      setScanData({ ...scanData, codigo_barras_producto: code, id_medicamento: null, nombre_medicamento: '' });
+      // RESET TOTAL: Si no existe, limpiamos ID para no guardar en el anterior
+      setScanData({ 
+        codigo_barras_producto: cleanCode, 
+        codigo_referencia: '',
+        cantidad_actual: '',
+        id_medicamento: null, 
+        nombre_medicamento: '' 
+      });
+      toast.error("Código no registrado en el catálogo");
     }
   };
 
-  // --- MUTACIÓN CON REFRESCO AUTOMÁTICO ---
+  // --- MUTACIÓN CON SINCRONIZACIÓN FORZADA ---
   const mutation = useMutation({
     mutationFn: async (newData: any) => {
+      // Formateamos el lote con el prefijo automático
       const loteFormateado = `LOTE-${newData.codigo_referencia.trim().toUpperCase()}`;
 
       // 1. Guardar o actualizar existencia en PostgreSQL
@@ -72,36 +87,41 @@ export function Existencias() {
         fecha_registro: new Date().toISOString().split('T')[0]
       });
       
-      // 2. Registrar movimiento en el historial
+      // 2. Registrar movimiento para el historial
       await storage.registrarMovimiento(
         existencia.id_existencia, 
         'entrada', 
         parseInt(newData.cantidad_actual), 
         1, 
-        `Sincronización de stock: ${loteFormateado}`
+        `Carga de stock: ${loteFormateado}`
       );
       return existencia;
     },
-    onSuccess: () => {
-      // REFRESCO CRÍTICO: Obliga a React Query a traer los datos nuevos del servidor
-      queryClient.invalidateQueries({ queryKey: ['existencias'] });
-      queryClient.invalidateQueries({ queryKey: ['medicamentos'] });
-      queryClient.invalidateQueries({ queryKey: ['inventario-completo'] });
-      queryClient.invalidateQueries({ queryKey: ['movimientos'] });
+    onSuccess: async () => {
+      // AJUSTE DE ESTABILIDAD: Espera para asegurar que la DB remota confirme el COMMIT
+      await new Promise(resolve => setTimeout(resolve, 500)); 
 
-      toast.success('Inventario sincronizado con éxito');
+      // Refresco masivo de todas las consultas relacionadas
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['medicamentos'] }),
+        queryClient.invalidateQueries({ queryKey: ['existencias'] }),
+        queryClient.invalidateQueries({ queryKey: ['inventario-completo'] }),
+        queryClient.invalidateQueries({ queryKey: ['movimientos'] })
+      ]);
+
+      toast.success('Inventario sincronizado correctamente');
       closeDialog();
     },
     onError: (error: any) => {
       console.error(error);
-      toast.error('Error al guardar: Verifique la conexión con el servidor');
+      toast.error('Error de comunicación con el servidor central');
     }
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!scanData.id_medicamento || !scanData.cantidad_actual || !scanData.codigo_referencia) {
-      toast.error('Por favor complete el número de lote y la cantidad');
+      toast.error('Complete todos los campos del lote');
       return;
     }
     mutation.mutate(scanData);
@@ -120,7 +140,7 @@ export function Existencias() {
 
   const getMedicamentoInfo = (id: number) => medicamentos.find(m => m.id_medicamento === id);
 
-  // --- FILTRADO DE VISTA ---
+  // --- FILTRADO DE LA TABLA ---
   const filteredExistencias = existencias.filter(e => {
     const med = getMedicamentoInfo(e.id_medicamento);
     if (!med || !med.activo) return false;
@@ -141,7 +161,7 @@ export function Existencias() {
   if (loadingEx) return (
     <div className="flex flex-col items-center justify-center p-20 space-y-4">
       <Loader2 className="animate-spin text-blue-600 w-10 h-10" />
-      <p className="text-slate-500 font-medium">Actualizando inventario...</p>
+      <p className="text-slate-500 font-medium">Sincronizando inventario...</p>
     </div>
   );
 
@@ -152,17 +172,18 @@ export function Existencias() {
           <h2 className="text-2xl font-semibold text-gray-900">Control de Existencias</h2>
           <p className="text-gray-600 mt-1">Gestión de lotes y stock en tiempo real</p>
         </div>
-        <Button onClick={() => setIsDialogOpen(true)} className="bg-blue-600 hover:bg-blue-700">
+        <Button onClick={() => setIsDialogOpen(true)} className="bg-blue-600 hover:bg-blue-700 shadow-md">
           <Barcode className="w-4 h-4 mr-2" /> Escaneo Rápido
         </Button>
       </div>
 
-      <Card>
+      <Card className="border-none shadow-sm bg-slate-50/50">
         <CardContent className="pt-6">
           <Input 
-            placeholder="Buscar por medicamento o número de lote..." 
+            placeholder="Filtrar por medicamento o número de lote..." 
             value={searchTerm} 
             onChange={e => setSearchTerm(e.target.value)} 
+            className="bg-white"
           />
         </CardContent>
       </Card>
@@ -176,15 +197,15 @@ export function Existencias() {
           const bajoStock = cantidadTotal <= medicamento.stock_minimo;
           
           return (
-            <Card key={medId} className={bajoStock ? "border-red-200 shadow-sm" : "shadow-sm border-slate-200"}>
-              <CardHeader className="pb-2 bg-slate-50/50">
+            <Card key={medId} className={bajoStock ? "border-red-200 shadow-md" : "shadow-sm border-slate-200"}>
+              <CardHeader className="pb-2 bg-slate-50/30">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-white border border-slate-200 shadow-sm">
+                    <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-white border shadow-xs">
                       <Package className="w-5 h-5 text-blue-500" />
                     </div>
                     <div>
-                      <CardTitle className="text-lg font-bold text-slate-800">{medicamento.nombre}</CardTitle>
+                      <CardTitle className="text-lg font-bold">{medicamento.nombre}</CardTitle>
                       <Badge variant="secondary" className="mt-1 text-[10px]">{medicamento.tipo_medicamento}</Badge>
                     </div>
                   </div>
@@ -192,15 +213,15 @@ export function Existencias() {
                     <p className={`text-2xl font-black ${bajoStock ? 'text-red-600' : 'text-emerald-600'}`}>
                       {cantidadTotal}
                     </p>
-                    {bajoStock && <Badge variant="destructive" className="text-[10px] animate-pulse">Stock Crítico</Badge>}
+                    {bajoStock && <Badge variant="destructive" className="text-[10px] animate-pulse">Bajo Stock</Badge>}
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="p-0">
                 <Table>
-                  <TableHeader className="bg-white">
+                  <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[40%] pl-6">Lote / Referencia</TableHead>
+                      <TableHead className="pl-6 w-[40%]">Lote / Referencia</TableHead>
                       <TableHead>Cantidad</TableHead>
                       <TableHead className="text-right pr-6">Fecha Registro</TableHead>
                     </TableRow>
@@ -208,13 +229,13 @@ export function Existencias() {
                   <TableBody>
                     {exs.map((e) => (
                       <TableRow key={e.id_existencia}>
-                        <TableCell className="font-mono text-xs pl-6">
+                        <TableCell className="font-mono text-xs pl-6 text-slate-600">
                           <Hash className="inline w-3 h-3 mr-2 text-slate-400"/>
-                          {e.codigo_referencia || 'SIN LOTE'}
+                          {e.codigo_referencia}
                         </TableCell>
                         <TableCell className="font-bold text-slate-700">{e.cantidad_actual}</TableCell>
                         <TableCell className="text-slate-500 text-xs text-right pr-6">
-                          <Calendar className="inline w-3 h-3 mr-2"/>
+                          <Calendar className="inline w-3 h-3 mr-1"/>
                           {new Date(e.fecha_registro).toLocaleDateString()}
                         </TableCell>
                       </TableRow>
@@ -229,38 +250,41 @@ export function Existencias() {
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader><DialogTitle>Entrada por Escáner</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Nuevo Ingreso de Stock</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 pt-4">
             
             <div className="space-y-2">
-              <Label className="flex items-center gap-2 font-bold text-slate-700"><Barcode className="w-4 h-4 text-blue-600" /> 1. Escanee Producto</Label>
+              <Label className="font-bold text-slate-700 flex items-center gap-2">
+                <Barcode className="w-4 h-4 text-blue-600" /> 1. Escaneo de Producto
+              </Label>
               <Input 
                 autoFocus 
                 placeholder="Dispare el lector aquí..."
                 value={scanData.codigo_barras_producto}
                 onChange={(e) => handleScanProducto(e.target.value)}
-                className="bg-slate-50"
+                className="bg-slate-50 border-slate-300"
               />
             </div>
 
             {scanData.id_medicamento ? (
-              <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-200">
-                <p className="text-xs text-emerald-700 font-bold flex items-center gap-2">
-                  <Package className="w-4 h-4" /> Detectado: {scanData.nombre_medicamento}
-                </p>
+              <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-200 flex items-center gap-3">
+                <div className="bg-emerald-500 p-2 rounded-full text-white"><Plus className="w-4 h-4" /></div>
+                <p className="text-xs text-emerald-800 font-bold">Medicamento: {scanData.nombre_medicamento}</p>
               </div>
             ) : scanData.codigo_barras_producto && (
-              <div className="bg-red-50 p-3 rounded-lg border border-red-200 flex items-center gap-2 text-red-700 text-xs">
-                <AlertCircle className="w-4 h-4" /> El producto no está en el catálogo.
+              <div className="bg-amber-50 p-3 rounded-lg border border-amber-200 flex items-center gap-2 text-amber-700 text-xs font-medium">
+                <AlertCircle className="w-4 h-4" /> Producto no encontrado en catálogo.
               </div>
             )}
 
             <div className="space-y-2">
-              <Label className="flex items-center gap-2 font-bold text-slate-700"><Tag className="w-4 h-4 text-blue-600" /> 2. Número de Lote</Label>
+              <Label className="font-bold text-slate-700 flex items-center gap-2">
+                <Tag className="w-4 h-4 text-blue-600" /> 2. Número de Lote
+              </Label>
               <div className="relative">
                 <span className="absolute left-3 top-2.5 text-slate-400 font-black text-sm select-none">LOTE-</span>
                 <Input 
-                  className="pl-14 bg-slate-50" 
+                  className="pl-14 bg-slate-50 border-slate-300" 
                   placeholder="Ej: 001"
                   value={scanData.codigo_referencia}
                   onChange={e => setScanData({...scanData, codigo_referencia: e.target.value})}
@@ -270,25 +294,25 @@ export function Existencias() {
             </div>
 
             <div className="space-y-2">
-              <Label className="font-bold text-slate-700">3. Cantidad que ingresa</Label>
+              <Label className="font-bold text-slate-700">3. Cantidad a ingresar</Label>
               <Input 
                 type="number" 
                 placeholder="0" 
                 value={scanData.cantidad_actual}
                 onChange={e => setScanData({...scanData, cantidad_actual: e.target.value})}
                 disabled={!scanData.id_medicamento}
-                className="bg-slate-50"
+                className="bg-slate-50 border-slate-300"
               />
             </div>
 
             <DialogFooter className="pt-4">
               <Button 
                 type="submit" 
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-6 shadow-lg transition-all" 
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-12 shadow-lg transition-all active:scale-[0.98]" 
                 disabled={!scanData.id_medicamento || !scanData.codigo_referencia || mutation.isPending}
               >
                 {mutation.isPending ? <Loader2 className="animate-spin mr-2" /> : <Plus className="mr-2 w-5 h-5" />}
-                Cargar al Inventario
+                Registrar Stock
               </Button>
             </DialogFooter>
           </form>

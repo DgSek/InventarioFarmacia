@@ -7,34 +7,28 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Configuración de conexión a tilinescraft.serveminecraft.net
 const pool = new Pool({
-  user: process.env.DB_USER,      // Hunter23
-  host: process.env.DB_HOST,      // tilinescraft.serveminecraft.net
-  database: process.env.DB_NAME,  // InventarioFarmacia
+  user: process.env.DB_USER,
+  host: process.env.DB_HOST,
+  database: process.env.DB_NAME,
   password: String(process.env.DB_PASSWORD), 
   port: process.env.DB_PORT || 5432,
   ssl: false 
 });
 
-// Verificación inicial de conexión
-pool.query('SELECT NOW()', (err, res) => {
-  if (err) {
-    console.error('❌ Error de conexión SASL:', err.message);
-  } else {
-    console.log('✅ Conexión exitosa a PostgreSQL en tilinescraft');
-  }
+pool.query('SELECT NOW()', (err) => {
+  if (err) console.error('❌ Error de conexión:', err.message);
+  else console.log('✅ Conexión exitosa a PostgreSQL');
 });
 
-// --- RUTAS DE MEDICAMENTOS ---
+// --- MEDICAMENTOS ---
 
 app.get('/api/medicamentos', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM Medicamentos ORDER BY nombre ASC');
     res.json(result.rows || []); 
   } catch (err) {
-    console.error(err.message);
-    res.status(500).json({ error: 'Error al obtener medicamentos' });
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -49,7 +43,6 @@ app.post('/api/medicamentos', async (req, res) => {
     );
     res.json(result.rows[0]);
   } catch (err) {
-    console.error(err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -66,55 +59,57 @@ app.put('/api/medicamentos/:id', async (req, res) => {
     );
     res.json(result.rows[0]);
   } catch (err) {
-    console.error(err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
-// --- RUTAS DE EXISTENCIAS ---
+// --- EXISTENCIAS ---
 
 app.get('/api/existencias', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM Existencias');
+    // MODIFICACIÓN: Quitamos el filtro WHERE m.activo para que durante la carga 
+    // no haya desfase si el medicamento se acaba de crear.
+    const result = await pool.query(`
+      SELECT 
+        e.*, 
+        m.nombre as nombre_medicamento, 
+        m.activo 
+      FROM Existencias e
+      LEFT JOIN Medicamentos m ON e.id_medicamento = m.id_medicamento
+      ORDER BY e.fecha_registro DESC
+    `);
     res.json(result.rows || []);
   } catch (err) {
     res.status(500).json({ error: 'Error al obtener existencias' });
   }
 });
 
-// Server/index.cjs
-
 app.post('/api/existencias', async (req, res) => {
   const { id_medicamento, codigo_referencia, cantidad_actual, fecha_registro } = req.body;
-
   try {
-    // La magia está en "ON CONFLICT": si el código de lote ya existe, 
-    // en lugar de dar error, suma la nueva cantidad a la que ya había.
     const result = await pool.query(
       `INSERT INTO Existencias (id_medicamento, codigo_referencia, cantidad_actual, fecha_registro) 
        VALUES ($1, $2, $3, $4) 
        ON CONFLICT (codigo_referencia) 
-       DO UPDATE SET cantidad_actual = Existencias.cantidad_actual + EXCLUDED.cantidad_actual
-       RETURNING *`,
+       DO UPDATE SET 
+          cantidad_actual = Existencias.cantidad_actual + EXCLUDED.cantidad_actual,
+          fecha_registro = CURRENT_TIMESTAMP
+       RETURNING *`, 
       [id_medicamento, codigo_referencia, cantidad_actual, fecha_registro]
     );
-    
-    console.log(`✅ Lote ${codigo_referencia} procesado correctamente.`);
     res.json(result.rows[0]);
   } catch (err) {
-    console.error("❌ Error grave en servidor:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
-// --- RUTAS DE MOVIMIENTOS ---
+// --- MOVIMIENTOS ---
 
 app.get('/api/movimientos', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM Movimientos ORDER BY fecha DESC'); 
     res.json(result.rows || []);
   } catch (err) {
-    console.error(err.message);
     res.status(500).json({ error: 'Error al obtener movimientos' });
   }
 });
@@ -122,8 +117,9 @@ app.get('/api/movimientos', async (req, res) => {
 app.post('/api/movimientos', async (req, res) => {
   const { id_existencia, tipo_movimiento, cantidad, id_usuario, observaciones } = req.body;
   
-  const tipoMin = tipo_movimiento ? tipo_movimiento.toLowerCase() : ''; 
-  const operador = (tipoMin === 'entrada') ? '+' : '-';
+  // MODIFICACIÓN: Validación de seguridad para el operador
+  const tipo = (tipo_movimiento || '').toLowerCase();
+  const operador = (tipo === 'entrada') ? '+' : '-';
 
   try {
     await pool.query('BEGIN');
@@ -142,12 +138,13 @@ app.post('/api/movimientos', async (req, res) => {
     res.json(nuevoMovimiento.rows[0]);
   } catch (err) {
     await pool.query('ROLLBACK');
-    console.error("❌ Error en la transacción de movimiento:", err.message);
-    res.status(500).json({ error: 'Error al procesar el movimiento y actualizar el stock' });
+    console.error("❌ Error en movimiento:", err.message);
+    res.status(500).json({ error: 'Error en la transacción de movimiento' });
   }
 });
 
-// --- RUTAS DE USUARIOS ---
+// --- USUARIOS ---
+
 app.get('/api/usuarios', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM Usuarios');
@@ -158,5 +155,5 @@ app.get('/api/usuarios', async (req, res) => {
 });
 
 app.listen(5000, () => {
-  console.log('✅ Servidor sincronizado y corriendo en el puerto 5000');
+  console.log('✅ Servidor sincronizado en puerto 5000');
 });
