@@ -5,14 +5,22 @@ import {
   ArrowLeftRight, 
   BarChart3, 
   LayoutDashboard,
-  AlertTriangle 
+  AlertTriangle, 
+  Box
 } from 'lucide-react';
 import { storage } from '../data/storage';
 import { Badge } from './ui/badge';
+import { useQuery } from '@tanstack/react-query';
 
 export function Layout() {
   const location = useLocation();
-  const alertas = storage.getAlertas();
+
+  // CARGA DINÁMICA: Obtenemos las alertas de la API para que el contador sea real
+  const { data: alertas = [] } = useQuery({
+    queryKey: ['alertas'],
+    queryFn: () => storage.getAlertas(),
+    refetchInterval: 5000, // Opcional: actualiza cada 5 segundos
+  });
   
   const navigation = [
     { name: 'Panel de control', href: '/', icon: LayoutDashboard },
@@ -20,6 +28,8 @@ export function Layout() {
     { name: 'Existencias', href: '/existencias', icon: PackageOpen },
     { name: 'Movimientos', href: '/movimientos', icon: ArrowLeftRight },
     { name: 'Reportes', href: '/reportes', icon: BarChart3 },
+    // MODIFICACIÓN: Suministros al final de la lista
+    { name: 'Suministros', href: '/insumos', icon: Box },
   ];
   
   const isActive = (path: string) => {
@@ -45,6 +55,7 @@ export function Layout() {
               </div>
             </div>
             
+            {/* Alerta Global en el Header */}
             {alertas.length > 0 && (
               <Link to="/" className="flex items-center gap-2 px-4 py-2 rounded-lg hover:opacity-90 transition-opacity" style={{ backgroundColor: '#96453B', color: '#ffffff' }}>
                 <AlertTriangle className="w-4 h-4" />
@@ -68,9 +79,7 @@ export function Layout() {
                   key={item.name}
                   to={item.href}
                   className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                    active
-                      ? ''
-                      : 'hover:bg-opacity-50'
+                    active ? '' : 'hover:bg-slate-50'
                   }`}
                   style={{
                     backgroundColor: active ? '#ECD2D1' : 'transparent',
@@ -79,8 +88,10 @@ export function Layout() {
                 >
                   <Icon className="w-5 h-5" />
                   <span className="font-medium">{item.name}</span>
-                  {item.name === 'Dashboard' && alertas.length > 0 && (
-                    <Badge variant="destructive" className="ml-auto">
+                  
+                  {/* Badge de alertas solo en Panel de Control para no saturar la vista */}
+                  {item.name === 'Panel de control' && alertas.length > 0 && (
+                    <Badge variant="destructive" className="ml-auto bg-red-600">
                       {alertas.length}
                     </Badge>
                   )}

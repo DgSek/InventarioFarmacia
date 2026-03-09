@@ -1,4 +1,3 @@
-// src/data/storage.ts
 import {
   Medicamento,
   Existencia,
@@ -7,6 +6,9 @@ import {
   TipoMovimiento,
   Alerta,
   ReporteConsumo,
+  Insumo,
+  SalidaInsumo,
+  EquipoMedico,
 } from '../types';
 
 const API_URL = 'http://localhost:5000/api';
@@ -45,18 +47,10 @@ export const storage = {
   },
 
   async saveExistencia(existencia: Omit<Existencia, 'id_existencia'>): Promise<Existencia> {
-    // CORRECCIÓN: Aseguramos que se envíe 'codigo_referencia' al servidor de Ubuntu
-    const payload = {
-      id_medicamento: existencia.id_medicamento,
-      codigo_referencia: existencia.codigo_referencia, 
-      cantidad_actual: existencia.cantidad_actual,
-      fecha_registro: existencia.fecha_registro
-    };
-
     const response = await fetch(`${API_URL}/existencias`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(existencia),
     });
     return await response.json();
   },
@@ -85,7 +79,89 @@ export const storage = {
     return await response.json();
   },
 
-  // --- USUARIOS ---
+  // --- INSUMOS ---
+  async getInsumos(): Promise<Insumo[]> {
+    const response = await fetch(`${API_URL}/insumos`);
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
+  },
+
+  async saveInsumo(insumo: Omit<Insumo, 'id_insumo'>): Promise<Insumo> {
+    const response = await fetch(`${API_URL}/insumos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(insumo),
+    });
+    return await response.json();
+  },
+
+  // CORRECCIÓN: Función para actualizar insumos (resuelve error de tipos)
+  async updateInsumo(insumo: Insumo): Promise<Insumo> {
+    const response = await fetch(`${API_URL}/insumos/${insumo.id_insumo}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(insumo),
+    });
+    return await response.json();
+  },
+
+  // NUEVO: Función para eliminar insumos físicamente de la DB
+  async deleteInsumo(id_insumo: number): Promise<boolean> {
+    const response = await fetch(`${API_URL}/insumos/${id_insumo}`, {
+      method: 'DELETE',
+    });
+    return response.ok;
+  },
+
+  async registrarSalidaInsumo(id_insumo: number, cantidad: number, observacion?: string): Promise<boolean> {
+    const response = await fetch(`${API_URL}/insumos/salida`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_insumo, cantidad, observacion }),
+    });
+    return response.ok;
+  },
+
+  async getSalidasInsumos(): Promise<SalidaInsumo[]> {
+    const response = await fetch(`${API_URL}/insumos/salidas`);
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
+  },
+
+  // --- EQUIPO MÉDICO ---
+  async getEquipoMedico(): Promise<EquipoMedico[]> {
+    const response = await fetch(`${API_URL}/equipo-medico`);
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
+  },
+
+  async saveEquipoMedico(equipo: Omit<EquipoMedico, 'id_equipo'>): Promise<EquipoMedico> {
+    const response = await fetch(`${API_URL}/equipo-medico`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(equipo),
+    });
+    return await response.json();
+  },
+
+  async updateEquipoMedico(equipo: EquipoMedico): Promise<EquipoMedico> {
+    const response = await fetch(`${API_URL}/equipo-medico/${equipo.id_equipo}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(equipo),
+    });
+    return await response.json();
+  },
+
+  // NUEVO: Función para eliminar equipo médico
+  async deleteEquipoMedico(id_equipo: number): Promise<boolean> {
+    const response = await fetch(`${API_URL}/equipo-medico/${id_equipo}`, {
+      method: 'DELETE',
+    });
+    return response.ok;
+  },
+
+  // --- UTILIDADES E INVENTARIO ---
   async getUsuarios(): Promise<Usuario[]> {
     const response = await fetch(`${API_URL}/usuarios`);
     return await response.json();
@@ -157,8 +233,10 @@ export const storage = {
         cantidad_total: item.cantidad_total,
         stock_minimo: item.medicamento.stock_minimo,
         tipo_medicamento: item.medicamento.tipo_medicamento,
+        sm: item.medicamento.stock_minimo,
         ubicacion: item.medicamento.ubicacion,
-        estante: item.medicamento.estante
+        estante: item.medicamento.estante,
+        sede: item.medicamento.sede
       }));
   }
 };

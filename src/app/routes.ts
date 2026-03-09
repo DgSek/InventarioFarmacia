@@ -5,6 +5,7 @@ import { Medicamentos } from './pages/Medicamentos';
 import { Existencias } from './pages/Existencias';
 import { Movimientos } from './pages/Movimientos';
 import { Reportes } from './pages/Reportes';
+import { Insumos } from './pages/Insumos';
 
 export const router = createBrowserRouter([
   {
@@ -16,6 +17,7 @@ export const router = createBrowserRouter([
       { path: 'existencias', Component: Existencias },
       { path: 'movimientos', Component: Movimientos },
       { path: 'reportes', Component: Reportes },
+      { path: 'insumos', Component: Insumos },
     ],
   },
 ]);

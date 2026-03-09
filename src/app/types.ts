@@ -9,7 +9,8 @@ export interface Medicamento {
   stock_minimo: number;
   activo: boolean;
   ubicacion: string;
-  estante?: string; // Agregado según el diseño de la DB
+  estante?: string;
+  sede: string;
 }
 
 export interface Existencia {
@@ -45,6 +46,7 @@ export interface Alerta {
   tipo_medicamento: string;
   ubicacion: string;
   estante?: string;
+  sede: string;
 }
 
 export interface ReporteConsumo {
@@ -52,4 +54,28 @@ export interface ReporteConsumo {
   tipo_medicamento: string;
   cantidad_total: number;
   num_movimientos: number;
+}
+
+// Tipos para Insumos
+export interface Insumo {
+  id_insumo: number;
+  nombre_insumo: string;
+  tipo_insumo: string;
+  cantidad_actual: number;
+}
+
+export interface SalidaInsumo {
+  id_salida: number;
+  id_insumo: number;
+  cantidad: number;
+  fecha: string;
+  observacion?: string;
+}
+
+// Tipos para Equipo Médico
+export interface EquipoMedico {
+  id_equipo: number;
+  nombre_equipo: string;
+  descripcion: string;
+  estado: string;
 }
