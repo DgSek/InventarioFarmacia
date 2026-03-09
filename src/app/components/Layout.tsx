@@ -28,7 +28,6 @@ export function Layout() {
     { name: 'Existencias', href: '/existencias', icon: PackageOpen },
     { name: 'Movimientos', href: '/movimientos', icon: ArrowLeftRight },
     { name: 'Reportes', href: '/reportes', icon: BarChart3 },
-    // MODIFICACIÓN: Suministros al final de la lista
     { name: 'Suministros', href: '/insumos', icon: Box },
   ];
   

@@ -133,7 +133,7 @@ export function Insumos() {
   const closeEquipoDialog = () => { setIsEquipoDialogOpen(false); setEditingEquipo(null); };
 
   const getEstadoBadge = (estado: string) => {
-    const variants = { 'Disponible': 'default', 'En uso': 'secondary', 'Mantenimiento': 'outline', 'Dañado': 'destructive' } as const;
+    const variants = { 'Disponible': 'default', 'En uso': 'secondary', 'Mantenimiento': 'outline', 'Dañado': 'destructive', 'Operativo': 'default' } as const;
     return <Badge variant={variants[estado as keyof typeof variants] || 'default'}>{estado}</Badge>;
   };
 
@@ -187,28 +187,63 @@ export function Insumos() {
         
         <TabsContent value="equipo" className="space-y-6 pt-4">
           <Button onClick={() => openEquipoDialog()}><Plus className="w-4 h-4 mr-2" /> Registrar Equipo</Button>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {equipos.map((eq) => (
-              <Card key={eq.id_equipo}>
-                <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                  <div className="p-2 bg-blue-50 rounded-lg text-blue-600"><Stethoscope className="w-5 h-5" /></div>
-                  {getEstadoBadge(eq.estado)}
-                </CardHeader>
-                <CardContent>
-                  <h3 className="font-bold text-slate-900">{eq.nombre_equipo}</h3>
-                  <p className="text-xs text-slate-500 mt-1 line-clamp-2">{eq.descripcion}</p>
-                  <div className="mt-4 flex justify-end gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => openEquipoDialog(eq)}><Edit className="w-4 h-4 text-slate-400" /></Button>
-                    <Button variant="ghost" size="icon" onClick={() => deleteEquipoMutation.mutate(eq.id_equipo)}><Trash2 className="w-4 h-4 text-red-400" /></Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          
+          <Card>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="pl-6">ID</TableHead>
+                    <TableHead>Nombre</TableHead>
+                    <TableHead>Descripción</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead className="text-right pr-6">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {equipos.length > 0 ? (
+                    equipos.map((eq) => (
+                      <TableRow key={eq.id_equipo}>
+                        <TableCell className="font-medium pl-6">#{eq.id_equipo}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Stethoscope className="w-4 h-4 text-blue-600" />
+                            <span className="font-bold text-slate-900">{eq.nombre_equipo}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm text-slate-500 line-clamp-1 max-w-[300px]">
+                            {eq.descripcion}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          {getEstadoBadge(eq.estado)}
+                        </TableCell>
+                        <TableCell className="text-right pr-6">
+                          <Button variant="ghost" size="icon" onClick={() => openEquipoDialog(eq)}>
+                            <Edit className="w-4 h-4 text-slate-400" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => deleteEquipoMutation.mutate(eq.id_equipo)}>
+                            <Trash2 className="w-4 h-4 text-red-400" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8 text-slate-500">
+                        No hay equipos registrados
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 
-      {/* DIÁLOGO INSUMO (Simplificado) */}
+      {/* DIÁLOGO INSUMO */}
       <Dialog open={isInsumoDialogOpen} onOpenChange={setIsInsumoDialogOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>{editingInsumo ? 'Editar' : 'Nuevo'} Insumo</DialogTitle></DialogHeader>
