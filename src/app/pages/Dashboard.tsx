@@ -92,13 +92,13 @@ export function Dashboard() {
                 Inventario de farmacia
               </h2>
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#A5867A' }}></div>
-                <p className="text-sm font-medium" style={{ color: '#A5867A' }}>Control general del inventario de farmacia</p>
+                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#3A3533' }}></div>
+                <p className="text-sm font-medium" style={{ color: '#3A3533' }}>Control general del inventario de farmacia</p>
               </div>
               {/* Fecha actual */}
               <div className="flex items-center gap-2 mt-3">
-                <Activity className="w-4 h-4" style={{ color: '#A37D5A' }} />
-                <p className="text-sm font-medium" style={{ color: '#A37D5A' }}>
+                <Activity className="w-4 h-4" style={{ color: '#3A3533' }} />
+                <p className="text-sm font-medium" style={{ color: '#3A3533' }}>
                   {new Date().toLocaleDateString('es-ES', {
                     weekday: 'long',
                     year: 'numeric',
@@ -222,7 +222,7 @@ export function Dashboard() {
         <CardContent>
           <Table>
             <TableHeader>
-              <TableRow>
+              <TableRow className="hover:bg-[#4796B7]/10 border-b transition-colors">
                 <TableHead>Medicamento</TableHead>
                 <TableHead>Tipo</TableHead>
                 <TableHead>Cantidad</TableHead>
@@ -232,7 +232,8 @@ export function Dashboard() {
             <TableBody>
               {reporteConsumo.length > 0 ? (
                 reporteConsumo.slice(0, 5).map((item, index) => (
-                  <TableRow key={index}>
+                  <TableRow key={index}
+                    className="hover:bg-[#4796B7]/10 transition-colors cursor-default">
                     <TableCell className="font-medium">{item.nombre_medicamento}</TableCell>
                     <TableCell><Badge variant="outline">{item.tipo_medicamento}</Badge></TableCell>
                     <TableCell className="text-blue-600 font-bold">{item.cantidad_total} unidades</TableCell>

@@ -38,12 +38,12 @@ export function Medicamentos() {
     nombre: '',
     tipo_medicamento: '',
     concentracion: '',
-    codigo_barras: '', 
+    codigo_barras: '',
     stock_minimo: '',
     ubicacion: '',
     estante: '',
     activo: true,
-    sede: 'Centro Comunitario', 
+    sede: 'Centro Comunitario',
   });
 
   // --- CARGA DE DATOS ---
@@ -85,7 +85,7 @@ export function Medicamentos() {
               ex.id_existencia,
               'salida',
               ex.cantidad_actual,
-              1, 
+              1,
               `Baja por eliminación de registro: ${med.nombre}`
             );
           }
@@ -137,7 +137,7 @@ export function Medicamentos() {
         nombre: medicamento.nombre,
         tipo_medicamento: medicamento.tipo_medicamento,
         concentracion: medicamento.concentracion,
-        codigo_barras: medicamento.codigo_barras || '', 
+        codigo_barras: medicamento.codigo_barras || '',
         stock_minimo: medicamento.stock_minimo.toString(),
         ubicacion: medicamento.ubicacion,
         estante: medicamento.estante || '',
@@ -171,7 +171,7 @@ export function Medicamentos() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Catálogo de Medicamentos</h2>
-        <Button onClick={() => openDialog()} className="bg-blue-600 hover:bg-blue-700 shadow-md">
+        <Button onClick={() => openDialog()} className="bg-[#4796B7] hover:bg-[#3a7d99] shadow-md text-white">
           <Plus className="w-4 h-4 mr-2" /> Nuevo Medicamento
         </Button>
       </div>
@@ -212,8 +212,8 @@ export function Medicamentos() {
       <Card className="shadow-sm border-slate-200">
         <CardContent className="p-0">
           <Table>
-            <TableHeader className="bg-slate-50/50">
-              <TableRow>
+            <TableHeader>
+              <TableRow className="hover:bg-[#4796B7]/10 border-b transition-colors">
                 <TableHead className="w-[140px] pl-6">Código</TableHead>
                 <TableHead>Medicamento</TableHead>
                 <TableHead>Sede</TableHead>
@@ -228,7 +228,7 @@ export function Medicamentos() {
                 const bajoStock = total <= med.stock_minimo;
 
                 return (
-                  <TableRow key={med.id_medicamento} className="hover:bg-slate-50/80 transition-colors">
+                  <TableRow key={med.id_medicamento} className="hover:bg-[#4796B7]/5 transition-colors">
                     <TableCell className="font-mono text-[11px] text-blue-600 font-bold pl-6">
                       {med.codigo_barras}
                     </TableCell>
@@ -304,20 +304,20 @@ export function Medicamentos() {
                 <Label className="text-slate-700 font-bold flex items-center gap-2">
                   <Barcode className="w-4 h-4" /> Código
                 </Label>
-                <Input 
+                <Input
                   className="bg-white"
-                  value={formData.codigo_barras} 
-                  onChange={(e) => setFormData({ ...formData, codigo_barras: e.target.value })} 
+                  value={formData.codigo_barras}
+                  onChange={(e) => setFormData({ ...formData, codigo_barras: e.target.value })}
                 />
               </div>
-              
+
               {/* DROPDOWN DE SEDES */}
               <div className="bg-blue-50/50 p-3 rounded-lg border border-blue-100 space-y-2">
                 <Label className="text-blue-900 font-bold flex items-center gap-2">
                   <Building2 className="w-4 h-4" /> Sede
                 </Label>
-                <Select 
-                  value={formData.sede} 
+                <Select
+                  value={formData.sede}
                   onValueChange={(val) => setFormData({ ...formData, sede: val })}
                 >
                   <SelectTrigger className="bg-white border-blue-200 text-blue-900 font-medium">
@@ -366,8 +366,8 @@ export function Medicamentos() {
 
             <DialogFooter className="pt-4 border-t">
               <Button type="button" variant="ghost" onClick={closeDialog}>Cancelar</Button>
-              <Button type="submit" disabled={mutation.isPending} className="bg-blue-600 hover:bg-blue-700 px-8">
-                {mutation.isPending && <Loader2 className="animate-spin mr-2 w-4 h-4"/>}
+              <Button type="submit" disabled={mutation.isPending} className="bg-[#4796B7] hover:bg-[#3a7d99] px-8 text-white">
+                {mutation.isPending && <Loader2 className="animate-spin mr-2 w-4 h-4" />}
                 {editingMedicamento ? 'Guardar' : 'Registrar'}
               </Button>
             </DialogFooter>

@@ -165,9 +165,12 @@ export function Movimientos() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-semibold text-gray-900">Historial de Movimientos</h2>
-          <p className="text-gray-600 mt-1">Auditoría de inventario en tiempo real</p>
+          <p className="text-gray-600 mt-1">Auditoría de inventario</p>
         </div>
-        <Button onClick={() => setIsDialogOpen(true)} className="bg-blue-600">
+        <Button
+          onClick={() => setIsDialogOpen(true)}
+          className="bg-[#4796B7] hover:bg-[#3a7d99] text-white transition-colors"
+        >
           <Plus className="w-4 h-4 mr-2" /> Nuevo Registro
         </Button>
       </div>
@@ -379,7 +382,11 @@ export function Movimientos() {
             </div>
 
             <DialogFooter>
-              <Button type="submit" className="w-full bg-blue-600" disabled={mutation.isPending}>
+              <Button
+                type="submit"
+                className="w-full bg-[#4796B7] hover:bg-[#3a7d99] text-white"
+                disabled={mutation.isPending}
+              >
                 {mutation.isPending ? <Loader2 className="animate-spin mr-2" /> : "Confirmar Registro"}
               </Button>
             </DialogFooter>

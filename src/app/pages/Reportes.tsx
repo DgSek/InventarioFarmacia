@@ -75,7 +75,7 @@ export function Reportes() {
     { name: 'Caducados', value: movimientos.filter(m => m.tipo_movimiento === 'caducado').length },
   ];
 
-  const COLORS = ['#6DA2B3', '#96453B', '#A37D5A'];
+  const COLORS = ['#6DA2B3', '#ffe2af', '#f96e5b'];
   const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
   const anios = [2024, 2025, 2026];
 
@@ -186,7 +186,7 @@ export function Reportes() {
             <p className="text-2xl font-bold text-red-600">-{stats.totalCaducados}</p>
           </CardContent>
         </Card>
-        <Card className="border-l-4 border-l-purple-500">
+        <Card className="border-l-4 border-l-teal-500">
           <CardContent className="pt-6">
             <p className="text-sm text-slate-500 font-medium">Operaciones Históricas</p>
             <p className="text-2xl font-bold text-slate-800">{movimientos.length}</p>

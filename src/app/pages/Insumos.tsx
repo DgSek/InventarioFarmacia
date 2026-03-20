@@ -143,7 +143,7 @@ export function Insumos() {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-slate-800">Suministros y Equipo Médico</h2>
-        <p className="text-slate-500">Gestión de inventario simplificada</p>
+        <p className="text-slate-500">Gestión de inventario</p>
       </div>
       
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -162,7 +162,7 @@ export function Insumos() {
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
-                  <TableRow>
+                  <TableRow className="hover:bg-[#4796B7]/10 border-b transition-colors">
                     <TableHead className="pl-6">Nombre del Insumo</TableHead>
                     <TableHead>Stock Actual</TableHead>
                     <TableHead className="text-right pr-6">Acciones</TableHead>

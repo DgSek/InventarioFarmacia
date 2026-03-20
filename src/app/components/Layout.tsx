@@ -30,7 +30,7 @@ export function Layout() {
   return (
     <div className="min-h-screen flex" style={{ backgroundColor: '#FAF8F7' }}>
       {/* Sidebar */}
-      <aside className="w-64 border-r flex flex-col fixed h-screen" style={{ backgroundColor: '#FFFFFF', borderColor: 'rgba(58, 53, 51, 0.1)'}}
+      <aside className="w-64 border-r flex flex-col fixed h-screen" style={{ backgroundColor: '#4796B7', borderColor: 'rgba(58, 53, 51, 0.1)'}}
       >
         {/* Header del Sidebar */}
         <div className="px-4 py-5 border-b" style={{ borderColor: 'rgba(58, 53, 51, 0.1)' }}>
@@ -39,8 +39,8 @@ export function Layout() {
               <Package className="w-5 h-5 text-white" />
             </div>
             <div className="min-w-0">
-              <h1 className="font-semibold text-sm truncate" style={{ color: '#3A3533' }}>Sistema de Inventario</h1>
-              <p className="text-xs truncate" style={{ color: '#A5867A' }}>Gestión de Medicamentos</p>
+              <h1 className="font-semibold text-lg truncate" style={{ color: '#FFFFFF' }}>Sistema de Inventario</h1>
+              <p className="text-sm truncate" style={{ color: '#FFFFFF' }}>Gestión de Medicamentos</p>
             </div>
           </div>
         </div>
@@ -60,8 +60,8 @@ export function Layout() {
                     : 'hover:bg-opacity-50'
                   }`}
                 style={{
-                  backgroundColor: active ? '#ECD2D1' : 'transparent',
-                  color: active ? '#6DA2B3' : '#3A3533',
+                  backgroundColor: active ? '#FFFFFF' : 'transparent',
+                  color: active ? '#6DA2B3' : '#FFFFFF',
                 }}
               >
                 <Icon className="w-5 h-5 flex-shrink-0" />
