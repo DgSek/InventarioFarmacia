@@ -3,6 +3,8 @@ import { storage } from '../data/storage';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Label } from '../components/ui/label';
+import { Input } from '../components/ui/input';
+import { Button } from '../components/ui/button';
 import {
   Select,
   SelectContent,
@@ -11,13 +13,16 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
-import { BarChart3, TrendingUp, Calendar, AlertTriangle, Package, FileText, Loader2 } from 'lucide-react';
+import { BarChart3, TrendingUp, Calendar, AlertTriangle, Package, FileText, Loader2, Filter, Search } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { Badge } from '../components/ui/badge';
 
 export function Reportes() {
   const [mes, setMes] = useState(new Date().getMonth().toString());
   const [anio, setAnio] = useState(new Date().getFullYear().toString());
+  const [folio, setFolio] = useState('');
+  const [folioInput, setFolioInput] = useState('');
+  const [showFolioDropdown, setShowFolioDropdown] = useState(false);
 
   // --- CARGA DE DATOS ASÍNCRONA ---
   const { data: reporteConsumo = [], isLoading: loadingReporte } = useQuery({
@@ -34,6 +39,28 @@ export function Reportes() {
     queryKey: ['movimientos'],
     queryFn: () => storage.getMovimientos(),
   });
+
+  const { data: existencias = [] } = useQuery({
+    queryKey: ['existencias'],
+    queryFn: () => storage.getExistencias(),
+  });
+
+  // --- PROCESAMIENTO DE FOLIOS ---
+  const foliosDisponibles = existencias.map(ex => ex.codigo_referencia).filter(f => f != null);
+  const foliosFiltrados = foliosDisponibles.filter(f => 
+    f.toLowerCase().includes(folioInput.toLowerCase())
+  );
+
+  const handleFiltrar = () => {
+    // Aquí puedes agregar la lógica de filtrado según el folio seleccionado
+    console.log('Filtrando con:', { mes, anio, folio });
+  };
+
+  const handleSelectFolio = (selectedFolio: string) => {
+    setFolio(selectedFolio);
+    setFolioInput(selectedFolio);
+    setShowFolioDropdown(false);
+  };
 
   // --- PROCESAMIENTO DE DATOS PARA GRÁFICOS ---
   const topConsumo = reporteConsumo.slice(0, 10);
@@ -79,7 +106,7 @@ export function Reportes() {
         <CardContent className="pt-6">
           <div className="flex items-center gap-4">
             <Calendar className="w-5 h-5 text-gray-500" />
-            <div className="grid grid-cols-2 gap-4 flex-1 max-w-md">
+            <div className="grid grid-cols-4 gap-4 flex-1">
               <div>
                 <Label>Mes de Análisis</Label>
                 <Select value={mes} onValueChange={setMes}>
@@ -97,6 +124,43 @@ export function Reportes() {
                     {anios.map(a => <SelectItem key={a} value={a.toString()}>{a}</SelectItem>)}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="relative">
+                <Label>Folio</Label>
+                <div className="relative">
+                  <Input
+                    placeholder="Buscar o escribir folio..."
+                    value={folioInput}
+                    onChange={(e) => {
+                      setFolioInput(e.target.value);
+                      setShowFolioDropdown(true);
+                    }}
+                    onFocus={() => setShowFolioDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowFolioDropdown(false), 200)}
+                    className="pr-8"
+                  />
+                  <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  
+                  {showFolioDropdown && foliosFiltrados.length > 0 && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
+                      {foliosFiltrados.slice(0, 10).map((f, idx) => (
+                        <div
+                          key={idx}
+                          onClick={() => handleSelectFolio(f)}
+                          className="px-3 py-2 hover:bg-slate-100 cursor-pointer text-sm border-b last:border-b-0"
+                        >
+                          {f}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-end">
+                <Button onClick={handleFiltrar} className="w-full" style={{ backgroundColor: '#6DA2B3' }}>
+                  <Filter className="w-4 h-4 mr-2" />
+                  Filtrar
+                </Button>
               </div>
             </div>
           </div>

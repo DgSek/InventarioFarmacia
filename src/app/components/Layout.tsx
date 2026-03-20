@@ -5,30 +5,19 @@ import {
   ArrowLeftRight, 
   BarChart3, 
   LayoutDashboard,
-  AlertTriangle, 
   Box
 } from 'lucide-react';
-import { storage } from '../data/storage';
-import { Badge } from './ui/badge';
-import { useQuery } from '@tanstack/react-query';
 
 export function Layout() {
   const location = useLocation();
-
-  // CARGA DINÁMICA: Obtenemos las alertas de la API para que el contador sea real
-  const { data: alertas = [] } = useQuery({
-    queryKey: ['alertas'],
-    queryFn: () => storage.getAlertas(),
-    refetchInterval: 5000, // Opcional: actualiza cada 5 segundos
-  });
   
   const navigation = [
-    { name: 'Panel de control', href: '/', icon: LayoutDashboard },
+    { name: 'Dashboard', href: '/', icon: LayoutDashboard },
     { name: 'Medicamentos', href: '/medicamentos', icon: Package },
+    { name: 'Insumos', href: '/insumos', icon: Box },
     { name: 'Existencias', href: '/existencias', icon: PackageOpen },
     { name: 'Movimientos', href: '/movimientos', icon: ArrowLeftRight },
     { name: 'Reportes', href: '/reportes', icon: BarChart3 },
-    { name: 'Suministros', href: '/insumos', icon: Box },
   ];
   
   const isActive = (path: string) => {
@@ -39,72 +28,54 @@ export function Layout() {
   };
   
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#FAF8F7' }}>
-      {/* Header */}
-      <header className="bg-white border-b sticky top-0 z-10" style={{ borderColor: 'rgba(58, 53, 51, 0.1)' }}>
-        <div className="px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#6DA2B3' }}>
-                <Package className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="font-semibold" style={{ color: '#3A3533' }}>Sistema de Inventario</h1>
-                <p className="text-sm" style={{ color: '#A5867A' }}>Gestión de Medicamentos</p>
-              </div>
+    <div className="min-h-screen flex" style={{ backgroundColor: '#FAF8F7' }}>
+      {/* Sidebar */}
+      <aside className="w-64 bg-white border-r flex flex-col fixed h-screen" style={{ borderColor: 'rgba(58, 53, 51, 0.1)' }}>
+        {/* Header del Sidebar */}
+        <div className="px-4 py-5 border-b" style={{ borderColor: 'rgba(58, 53, 51, 0.1)' }}>
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#6DA2B3' }}>
+              <Package className="w-5 h-5 text-white" />
             </div>
-            
-            {/* Alerta Global en el Header */}
-            {alertas.length > 0 && (
-              <Link to="/" className="flex items-center gap-2 px-4 py-2 rounded-lg hover:opacity-90 transition-opacity" style={{ backgroundColor: '#96453B', color: '#ffffff' }}>
-                <AlertTriangle className="w-4 h-4" />
-                <span className="text-sm font-medium">{alertas.length} Alertas de stock</span>
-              </Link>
-            )}
+            <div className="min-w-0">
+              <h1 className="font-semibold text-sm truncate" style={{ color: '#3A3533' }}>Sistema de Inventario</h1>
+              <p className="text-xs truncate" style={{ color: '#A5867A' }}>Gestión de Medicamentos</p>
+            </div>
           </div>
         </div>
-      </header>
-      
-      <div className="flex">
-        {/* Sidebar */}
-        <aside className="w-64 bg-white border-r min-h-[calc(100vh-73px)]" style={{ borderColor: 'rgba(58, 53, 51, 0.1)' }}>
-          <nav className="p-4 space-y-1">
-            {navigation.map((item) => {
-              const Icon = item.icon;
-              const active = isActive(item.href);
-              
-              return (
-                <Link
-                  key={item.name}
-                  to={item.href}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                    active ? '' : 'hover:bg-slate-50'
-                  }`}
-                  style={{
-                    backgroundColor: active ? '#ECD2D1' : 'transparent',
-                    color: active ? '#6DA2B3' : '#3A3533',
-                  }}
-                >
-                  <Icon className="w-5 h-5" />
-                  <span className="font-medium">{item.name}</span>
-                  
-                  {/* Badge de alertas solo en Panel de Control para no saturar la vista */}
-                  {item.name === 'Panel de control' && alertas.length > 0 && (
-                    <Badge variant="destructive" className="ml-auto bg-red-600">
-                      {alertas.length}
-                    </Badge>
-                  )}
-                </Link>
-              );
-            })}
-          </nav>
-        </aside>
         
-        {/* Main Content */}
-        <main className="flex-1 p-6">
-          <Outlet />
-        </main>
-      </div>
+        {/* Navegación */}
+        <nav className="p-4 space-y-1 flex-1 overflow-y-auto">
+          {navigation.map((item) => {
+            const Icon = item.icon;
+            const active = isActive(item.href);
+            
+            return (
+              <Link
+                key={item.name}
+                to={item.href}
+                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                  active
+                    ? ''
+                    : 'hover:bg-opacity-50'
+                }`}
+                style={{
+                  backgroundColor: active ? '#ECD2D1' : 'transparent',
+                  color: active ? '#6DA2B3' : '#3A3533',
+                }}
+              >
+                <Icon className="w-5 h-5 flex-shrink-0" />
+                <span className="font-medium">{item.name}</span>
+              </Link>
+            );
+          })}
+        </nav>
+      </aside>
+      
+      {/* Main Content */}
+      <main className="flex-1 ml-64 p-6 overflow-y-auto">
+        <Outlet />
+      </main>
     </div>
   );
 }

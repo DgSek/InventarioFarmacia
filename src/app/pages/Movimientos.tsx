@@ -8,6 +8,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
 import { Textarea } from '../components/ui/textarea';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -23,7 +24,7 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
-import { Plus, ArrowUpCircle, ArrowDownCircle, XCircle, Calendar, User, Loader2, Barcode } from 'lucide-react';
+import { Plus, ArrowUpCircle, ArrowDownCircle, XCircle, Calendar, User, Loader2, Barcode, Package, Stethoscope } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function Movimientos() {
@@ -96,11 +97,11 @@ export function Movimientos() {
     if (e.key === 'Enter') {
       const barcode = scanBuffer.trim();
       const medEncontrado = medicamentos.find(m => m.codigo_barras === barcode);
-      
+
       if (medEncontrado) {
         setSelectedMedId(medEncontrado.id_medicamento);
         toast.success(`Medicamento: ${medEncontrado.nombre}`);
-        const loteConStock = existencias.find(ex => 
+        const loteConStock = existencias.find(ex =>
           ex.id_medicamento === medEncontrado.id_medicamento && ex.cantidad_actual > 0
         );
         if (loteConStock) {
@@ -121,7 +122,7 @@ export function Movimientos() {
     return med ? `${med.nombre} (${med.concentracion})` : 'No encontrado';
   };
 
-  const lotesFiltrados = selectedMedId 
+  const lotesFiltrados = selectedMedId
     ? existencias.filter(ex => ex.id_medicamento === selectedMedId)
     : existencias;
 
@@ -171,7 +172,7 @@ export function Movimientos() {
         </Button>
       </div>
 
-      {/* --- ESTA ES LA SECCIÓN QUE SE HABÍA BORRADO --- */}
+      {/* Filtros y estadísticas */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="md:col-span-1">
           <CardContent className="pt-6">
@@ -206,61 +207,131 @@ export function Movimientos() {
         </Card>
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader className="bg-slate-50">
-              <TableRow>
-                <TableHead>Fecha</TableHead>
-                <TableHead>Insumo / Medicamento</TableHead>
-                <TableHead>Operación</TableHead>
-                <TableHead>Cantidad</TableHead>
-                <TableHead>Responsable</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {movimientos
-                .filter(m => filterTipo === 'todos' || m.tipo_movimiento === filterTipo)
-                .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
-                .map((m) => (
-                <TableRow key={m.id_movimiento}>
-                  <TableCell className="text-xs font-mono">{new Date(m.fecha).toLocaleString()}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span className="font-medium text-slate-900">{getMedicamentoNombre(m.id_existencia)}</span>
-                      <span className="text-[10px] text-slate-400 italic truncate max-w-[150px]">{m.observaciones}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="capitalize bg-white">
-                      {m.tipo_movimiento === 'entrada' ? <ArrowUpCircle className="w-3 h-3 mr-1 text-emerald-500" /> : 
-                       m.tipo_movimiento === 'salida' ? <ArrowDownCircle className="w-3 h-3 mr-1 text-blue-500" /> :
-                       <XCircle className="w-3 h-3 mr-1 text-red-500" />}
-                      {m.tipo_movimiento}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className={m.tipo_movimiento === 'entrada' ? 'text-emerald-600 font-bold' : 'text-blue-600 font-bold'}>
-                    {m.tipo_movimiento === 'entrada' ? '+' : '-'}{m.cantidad}
-                  </TableCell>
-                  <TableCell className="text-xs text-slate-600">
-                    <User className="inline w-3 h-3 mr-1" />
-                    {usuarioActual?.nombre_usuario || 'Sistema'}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      {/* Sistema de pestañas - Diseño sutil */}
+      <div className="border-b" style={{ borderColor: 'rgba(58, 53, 51, 0.1)' }}>
+        <Tabs defaultValue="medicamentos" className="w-full">
+          <TabsList className="h-auto bg-transparent p-0 border-0 gap-8 w-auto rounded-none">
+
+            {/* Pestaña: Medicamentos */}
+            <TabsTrigger
+              value="medicamentos"
+              className="
+               flex items-center gap-2 px-1 pb-3 pt-0 rounded-none 
+               bg-transparent border-t-transparent border-x-transparent border-b-2
+               text-slate-400
+               data-[state=active]:bg-transparent 
+               data-[state=active]:border-b-cyan-500 
+               data-[state=active]:text-cyan-600
+               data-[state=active]:shadow-none
+               focus-visible:ring-0
+               "
+            >
+              <Package className="w-4 h-4" />
+              <span>Medicamentos</span>
+            </TabsTrigger>
+
+            {/* Pestaña: Equipo Médico */}
+            <TabsTrigger
+              value="equipo"
+              className="
+                 flex items-center gap-2 px-1 pb-3 pt-0 rounded-none 
+                 bg-transparent border-t-transparent border-x-transparent border-b-2
+                 text-slate-400
+                 data-[state=active]:bg-transparent 
+                 data-[state=active]:border-b-cyan-500 
+                 data-[state=active]:text-cyan-600
+                 data-[state=active]:shadow-none
+                 focus-visible:ring-0
+                 "
+            >
+              <Stethoscope className="w-4 h-4" />
+              <span>Equipo Médico</span>
+            </TabsTrigger>
+
+          </TabsList>
+
+          {/* Pestaña de Medicamentos */}
+          <TabsContent value="medicamentos" className="mt-6">
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader className="bg-slate-50">
+                    <TableRow>
+                      <TableHead>Fecha</TableHead>
+                      <TableHead>Insumo / Medicamento</TableHead>
+                      <TableHead>Operación</TableHead>
+                      <TableHead>Cantidad</TableHead>
+                      <TableHead>Responsable</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {movimientos
+                      .filter(m => filterTipo === 'todos' || m.tipo_movimiento === filterTipo)
+                      .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
+                      .map((m) => (
+                        <TableRow key={m.id_movimiento}>
+                          <TableCell className="text-xs font-mono">{new Date(m.fecha).toLocaleString()}</TableCell>
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span className="font-medium text-slate-900">{getMedicamentoNombre(m.id_existencia)}</span>
+                              <span className="text-[10px] text-slate-400 italic truncate max-w-[150px]">{m.observaciones}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="capitalize bg-white">
+                              {m.tipo_movimiento === 'entrada' ? <ArrowUpCircle className="w-3 h-3 mr-1 text-emerald-500" /> :
+                                m.tipo_movimiento === 'salida' ? <ArrowDownCircle className="w-3 h-3 mr-1 text-blue-500" /> :
+                                  <XCircle className="w-3 h-3 mr-1 text-red-500" />}
+                              {m.tipo_movimiento}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className={m.tipo_movimiento === 'entrada' ? 'text-emerald-600 font-bold' : 'text-blue-600 font-bold'}>
+                            {m.tipo_movimiento === 'entrada' ? '+' : '-'}{m.cantidad}
+                          </TableCell>
+                          <TableCell className="text-xs text-slate-600">
+                            <User className="inline w-3 h-3 mr-1" />
+                            {usuarioActual?.nombre_usuario || 'Sistema'}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Pestaña de Equipo Médico */}
+          <TabsContent value="equipo" className="mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Historial de Movimientos - Equipo Médico</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-12">
+                  <div className="w-20 h-20 rounded-full mx-auto mb-4 flex items-center justify-center" style={{ backgroundColor: 'rgba(165, 134, 122, 0.1)' }}>
+                    <Stethoscope className="w-10 h-10" style={{ color: '#A5867A' }} />
+                  </div>
+                  <h3 className="text-lg font-semibold mb-2" style={{ color: '#3A3533' }}>
+                    Movimientos de Equipo Médico
+                  </h3>
+                  <p className="text-sm max-w-md mx-auto" style={{ color: '#A5867A' }}>
+                    Esta sección estará disponible próximamente para gestionar entradas, salidas y mantenimiento del equipo médico.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[450px]">
           <DialogHeader><DialogTitle>Nuevo Movimiento de Stock</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 pt-4">
-            
+
             <div className="bg-blue-50 p-3 rounded-lg border-2 border-dashed border-blue-300 space-y-2">
               <Label className="flex items-center gap-2 text-blue-800 font-bold"><Barcode className="w-4 h-4" /> Escanee el producto</Label>
-              <Input 
+              <Input
                 ref={inputRef}
                 placeholder="Escanee el código de barras..."
                 value={scanBuffer}
@@ -273,7 +344,7 @@ export function Movimientos() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Tipo</Label>
-                <Select value={formData.tipo_movimiento} onValueChange={(v: TipoMovimiento) => setFormData({...formData, tipo_movimiento: v})}>
+                <Select value={formData.tipo_movimiento} onValueChange={(v: TipoMovimiento) => setFormData({ ...formData, tipo_movimiento: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="entrada">Entrada (+)</SelectItem>
@@ -284,13 +355,13 @@ export function Movimientos() {
               </div>
               <div className="space-y-2">
                 <Label>Cantidad</Label>
-                <Input type="number" min="1" value={formData.cantidad} onChange={e => setFormData({...formData, cantidad: e.target.value})} required />
+                <Input type="number" min="1" value={formData.cantidad} onChange={e => setFormData({ ...formData, cantidad: e.target.value })} required />
               </div>
             </div>
 
             <div className="space-y-2">
               <Label>Lote / Existencia {selectedMedId && "(Filtrado)"}</Label>
-              <Select value={formData.id_existencia} onValueChange={(v) => setFormData({...formData, id_existencia: v})}>
+              <Select value={formData.id_existencia} onValueChange={(v) => setFormData({ ...formData, id_existencia: v })}>
                 <SelectTrigger className={selectedMedId ? "bg-blue-50 border-blue-400" : ""}><SelectValue placeholder="Seleccione lote..." /></SelectTrigger>
                 <SelectContent>
                   {lotesFiltrados.map(ex => (
@@ -304,7 +375,7 @@ export function Movimientos() {
 
             <div className="space-y-2">
               <Label>Observaciones</Label>
-              <Textarea placeholder="Motivo..." value={formData.observaciones} onChange={e => setFormData({...formData, observaciones: e.target.value})} />
+              <Textarea placeholder="Motivo..." value={formData.observaciones} onChange={e => setFormData({ ...formData, observaciones: e.target.value })} />
             </div>
 
             <DialogFooter>

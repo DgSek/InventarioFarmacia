@@ -2,10 +2,10 @@ import { storage } from '../data/storage';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
-import { 
-  AlertTriangle, 
-  Package, 
-  TrendingUp, 
+import {
+  AlertTriangle,
+  Package,
+  TrendingUp,
   Activity,
   ArrowUpRight,
   Loader2
@@ -56,9 +56,9 @@ export function Dashboard() {
 
   // --- CÁLCULO DE ESTADÍSTICAS ---
   const hoy = new Date().toISOString().split('T')[0];
-  
+
   // CORRECCIÓN: Usar 'fecha_movimiento' que es el nombre real en tu DB de Ubuntu
-  const movimientosHoy = movimientos.filter(m => 
+  const movimientosHoy = movimientos.filter(m =>
     m.fecha && m.fecha.toString().startsWith(hoy)
   ).length;
 
@@ -76,10 +76,42 @@ export function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-semibold text-gray-900">Panel de Control</h2>
+      <div className="relative">
+        {/* Background decorativo */}
+        <div className="absolute inset-0 rounded-2xl opacity-5" style={{ backgroundColor: '#6DA2B3' }}></div>
+
+        {/* Contenido del header */}
+        <div className="relative px-8 py-6 rounded-2xl border" style={{
+          backgroundColor: 'rgba(109, 162, 179, 0.03)',
+          borderColor: 'rgba(109, 162, 179, 0.2)'
+        }}>
+          <div className="flex items-start gap-4">
+            {/* Textos */}
+            <div className="flex-1">
+              <h2 className="text-4xl font-bold mb-2 tracking-tight" style={{ color: '#3A3533' }}>
+                Inventario de farmacia
+              </h2>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#A5867A' }}></div>
+                <p className="text-sm font-medium" style={{ color: '#A5867A' }}>Control general del inventario de farmacia</p>
+              </div>
+              {/* Fecha actual */}
+              <div className="flex items-center gap-2 mt-3">
+                <Activity className="w-4 h-4" style={{ color: '#A37D5A' }} />
+                <p className="text-sm font-medium" style={{ color: '#A37D5A' }}>
+                  {new Date().toLocaleDateString('es-ES', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                  })}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-      
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
@@ -96,7 +128,7 @@ export function Dashboard() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -111,7 +143,7 @@ export function Dashboard() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -126,7 +158,7 @@ export function Dashboard() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card className={alertas.length > 0 ? "border-red-200 bg-red-50/30" : ""}>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
