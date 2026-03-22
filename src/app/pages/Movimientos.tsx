@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { storage } from '../data/storage';
-import { Movimiento, Existencia, Medicamento, TipoMovimiento } from '../types';
+import { Movimiento, Existencia, Medicamento, TipoMovimiento, SalidaInsumo, Insumo } from '../types';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
-import { Plus, ArrowUpCircle, ArrowDownCircle, XCircle, Calendar, User, Loader2, Barcode, Package, Stethoscope } from 'lucide-react';
+import { Plus, ArrowUpCircle, ArrowDownCircle, XCircle, Calendar, User, Loader2, Barcode, Package, Box, ClipboardList } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function Movimientos() {
@@ -56,6 +56,16 @@ export function Movimientos() {
       const res = await storage.getMovimientos();
       return Array.isArray(res) ? res : [];
     },
+  });
+
+  const { data: salidasInsumos = [], isLoading: loadingSalidasIns } = useQuery({
+    queryKey: ['salidas-insumos'],
+    queryFn: () => storage.getSalidasInsumos(),
+  });
+
+  const { data: insumos = [] } = useQuery({
+    queryKey: ['insumos'],
+    queryFn: () => storage.getInsumos(),
   });
 
   const { data: existencias = [] } = useQuery({
@@ -92,7 +102,19 @@ export function Movimientos() {
     onError: () => toast.error('Error al registrar movimiento'),
   });
 
-  // --- ESCANEO ---
+  // --- HELPERS ---
+  const getMedicamentoNombre = (idExistencia: number) => {
+    const ex = existencias.find(e => e.id_existencia === idExistencia);
+    if (!ex) return '---';
+    const med = medicamentos.find(m => m.id_medicamento === ex.id_medicamento);
+    return med ? `${med.nombre} (${med.concentracion})` : 'No encontrado';
+  };
+
+  const getInsumoNombre = (idInsumo: number) => {
+    const ins = insumos.find(i => i.id_insumo === idInsumo);
+    return ins ? ins.nombre_insumo : 'Insumo no identificado';
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       const barcode = scanBuffer.trim();
@@ -114,17 +136,6 @@ export function Movimientos() {
       setScanBuffer('');
     }
   };
-
-  const getMedicamentoNombre = (idExistencia: number) => {
-    const ex = existencias.find(e => e.id_existencia === idExistencia);
-    if (!ex) return '---';
-    const med = medicamentos.find(m => m.id_medicamento === ex.id_medicamento);
-    return med ? `${med.nombre} (${med.concentracion})` : 'No encontrado';
-  };
-
-  const lotesFiltrados = selectedMedId
-    ? existencias.filter(ex => ex.id_medicamento === selectedMedId)
-    : existencias;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -158,24 +169,21 @@ export function Movimientos() {
     setSelectedMedId(null);
   };
 
-  if (loadingMovs) return <div className="p-10 flex justify-center"><Loader2 className="animate-spin" /></div>;
+  if (loadingMovs || loadingSalidasIns) return <div className="p-10 flex justify-center"><Loader2 className="animate-spin" /></div>;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-semibold text-gray-900">Historial de Movimientos</h2>
-          <p className="text-gray-600 mt-1">Auditoría de inventario</p>
+          <p className="text-gray-600 mt-1">Auditoría de inventario en tiempo real</p>
         </div>
-        <Button
-          onClick={() => setIsDialogOpen(true)}
-          className="bg-[#4796B7] hover:bg-[#3a7d99] text-white transition-colors"
-        >
-          <Plus className="w-4 h-4 mr-2" /> Nuevo Registro
+        <Button onClick={() => setIsDialogOpen(true)} className="bg-[#4796B7]">
+          <Plus className="w-4 h-4 mr-2" /> Nuevo Registro Med.
         </Button>
       </div>
 
-      {/* Filtros y estadísticas */}
+      {/* Estadísticas */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="md:col-span-1">
           <CardContent className="pt-6">
@@ -200,60 +208,37 @@ export function Movimientos() {
             </div>
             <div className="text-center border-x px-12">
               <p className="text-[10px] uppercase font-bold text-blue-600">Salidas</p>
-              <p className="text-2xl font-bold">{movimientos.filter(m => m.tipo_movimiento === 'salida').length}</p>
+              <p className="text-2xl font-bold">{movimientos.filter(m => m.tipo_movimiento === 'salida').length + salidasInsumos.length}</p>
             </div>
             <div className="text-center">
-              <p className="text-[10px] uppercase font-bold text-red-600">Caducados</p>
-              <p className="text-2xl font-bold">{movimientos.filter(m => m.tipo_movimiento === 'caducado').length}</p>
+              <p className="text-[10px] uppercase font-bold text-slate-500">Total Insumos</p>
+              <p className="text-2xl font-bold">{insumos.length}</p>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Sistema de pestañas - Diseño sutil */}
       <div className="border-b" style={{ borderColor: 'rgba(58, 53, 51, 0.1)' }}>
         <Tabs defaultValue="medicamentos" className="w-full">
           <TabsList className="h-auto bg-transparent p-0 border-0 gap-8 w-auto rounded-none">
-
-            {/* Pestaña: Medicamentos */}
             <TabsTrigger
               value="medicamentos"
-              className="
-               flex items-center gap-2 px-1 pb-3 pt-0 rounded-none 
-               bg-transparent border-t-transparent border-x-transparent border-b-2
-               text-slate-400
-               data-[state=active]:bg-transparent 
-               data-[state=active]:border-b-cyan-500 
-               data-[state=active]:text-cyan-600
-               data-[state=active]:shadow-none
-               focus-visible:ring-0
-               "
+              className="flex items-center gap-2 px-1 pb-3 pt-0 rounded-none bg-transparent border-b-2 text-slate-400 data-[state=active]:border-b-cyan-500 data-[state=active]:text-cyan-600 data-[state=active]:shadow-none focus-visible:ring-0"
             >
               <Package className="w-4 h-4" />
               <span>Medicamentos</span>
             </TabsTrigger>
 
-            {/* Pestaña: Equipo Médico */}
             <TabsTrigger
-              value="equipo"
-              className="
-                 flex items-center gap-2 px-1 pb-3 pt-0 rounded-none 
-                 bg-transparent border-t-transparent border-x-transparent border-b-2
-                 text-slate-400
-                 data-[state=active]:bg-transparent 
-                 data-[state=active]:border-b-cyan-500 
-                 data-[state=active]:text-cyan-600
-                 data-[state=active]:shadow-none
-                 focus-visible:ring-0
-                 "
+              value="insumos"
+              className="flex items-center gap-2 px-1 pb-3 pt-0 rounded-none bg-transparent border-b-2 text-slate-400 data-[state=active]:border-b-cyan-500 data-[state=active]:text-cyan-600 data-[state=active]:shadow-none focus-visible:ring-0"
             >
-              <Stethoscope className="w-4 h-4" />
-              <span>Equipo Médico</span>
+              <Box className="w-4 h-4" />
+              <span>Salidas de Insumos</span>
             </TabsTrigger>
-
           </TabsList>
 
-          {/* Pestaña de Medicamentos */}
+          {/* TAB MEDICAMENTOS */}
           <TabsContent value="medicamentos" className="mt-6">
             <Card>
               <CardContent className="p-0">
@@ -303,95 +288,118 @@ export function Movimientos() {
             </Card>
           </TabsContent>
 
-          {/* Pestaña de Equipo Médico */}
-          <TabsContent value="equipo" className="mt-6">
+          {/* TAB SALIDAS DE INSUMOS (REEMPLAZANDO EQUIPO MÉDICO) */}
+          <TabsContent value="insumos" className="mt-6">
             <Card>
               <CardHeader>
-                <CardTitle>Historial de Movimientos - Equipo Médico</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                    <ClipboardList className="w-5 h-5 text-blue-600" />
+                    Historial de Egresos - Suministros
+                </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="text-center py-12">
-                  <div className="w-20 h-20 rounded-full mx-auto mb-4 flex items-center justify-center" style={{ backgroundColor: 'rgba(165, 134, 122, 0.1)' }}>
-                    <Stethoscope className="w-10 h-10" style={{ color: '#A5867A' }} />
-                  </div>
-                  <h3 className="text-lg font-semibold mb-2" style={{ color: '#3A3533' }}>
-                    Movimientos de Equipo Médico
-                  </h3>
-                  <p className="text-sm max-w-md mx-auto" style={{ color: '#A5867A' }}>
-                    Esta sección estará disponible próximamente para gestionar entradas, salidas y mantenimiento del equipo médico.
-                  </p>
-                </div>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader className="bg-slate-50">
+                    <TableRow>
+                      <TableHead className="pl-6">Fecha</TableHead>
+                      <TableHead>Insumo</TableHead>
+                      <TableHead>Cantidad</TableHead>
+                      <TableHead>Motivo / Observación</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {salidasInsumos.length > 0 ? (
+                      salidasInsumos
+                        .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
+                        .map((s: SalidaInsumo) => (
+                        <TableRow key={s.id_salida}>
+                          <TableCell className="pl-6 text-xs font-mono">
+                            {new Date(s.fecha).toLocaleString()}
+                          </TableCell>
+                          <TableCell className="font-medium text-slate-900">
+                            {getInsumoNombre(s.id_insumo)}
+                          </TableCell>
+                          <TableCell className="text-red-600 font-bold">
+                            -{s.cantidad}
+                          </TableCell>
+                          <TableCell className="text-sm text-slate-500 italic">
+                            {s.observacion || 'Sin observaciones'}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center py-10 text-slate-400">
+                          No se han registrado salidas de insumos aún.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
       </div>
 
+      {/* --- EL DIALOG SE MANTIENE IGUAL PARA MEDICAMENTOS --- */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        {/* ... (Contenido del Dialog de medicamentos que ya tenías) ... */}
         <DialogContent className="sm:max-w-[450px]">
-          <DialogHeader><DialogTitle>Nuevo Movimiento de Stock</DialogTitle></DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4 pt-4">
-
+           <DialogHeader><DialogTitle>Nuevo Movimiento de Stock</DialogTitle></DialogHeader>
+           <form onSubmit={handleSubmit} className="space-y-4 pt-4">
             <div className="bg-blue-50 p-3 rounded-lg border-2 border-dashed border-blue-300 space-y-2">
-              <Label className="flex items-center gap-2 text-blue-800 font-bold"><Barcode className="w-4 h-4" /> Escanee el producto</Label>
-              <Input
-                ref={inputRef}
-                placeholder="Escanee el código de barras..."
-                value={scanBuffer}
-                onChange={(e) => setScanBuffer(e.target.value)}
-                onKeyDown={handleKeyDown}
-                className="bg-white"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Tipo</Label>
-                <Select value={formData.tipo_movimiento} onValueChange={(v: TipoMovimiento) => setFormData({ ...formData, tipo_movimiento: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="entrada">Entrada (+)</SelectItem>
-                    <SelectItem value="salida">Salida (-)</SelectItem>
-                    <SelectItem value="caducado">Caducado/Baja</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Cantidad</Label>
-                <Input type="number" min="1" value={formData.cantidad} onChange={e => setFormData({ ...formData, cantidad: e.target.value })} required />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Lote / Existencia {selectedMedId && "(Filtrado)"}</Label>
-              <Select value={formData.id_existencia} onValueChange={(v) => setFormData({ ...formData, id_existencia: v })}>
-                <SelectTrigger className={selectedMedId ? "bg-blue-50 border-blue-400" : ""}><SelectValue placeholder="Seleccione lote..." /></SelectTrigger>
-                <SelectContent>
-                  {lotesFiltrados.map(ex => (
-                    <SelectItem key={ex.id_existencia} value={ex.id_existencia.toString()}>
-                      {getMedicamentoNombre(ex.id_existencia)} - [{ex.codigo_referencia}] (Stock: {ex.cantidad_actual})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Observaciones</Label>
-              <Textarea placeholder="Motivo..." value={formData.observaciones} onChange={e => setFormData({ ...formData, observaciones: e.target.value })} />
-            </div>
-
-            <DialogFooter>
-              <Button
-                type="submit"
-                className="w-full bg-[#4796B7] hover:bg-[#3a7d99] text-white"
-                disabled={mutation.isPending}
-              >
-                {mutation.isPending ? <Loader2 className="animate-spin mr-2" /> : "Confirmar Registro"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
+               <Label className="flex items-center gap-2 text-blue-800 font-bold"><Barcode className="w-4 h-4" /> Escanee el producto</Label>
+               <Input
+                 ref={inputRef}
+                 placeholder="Escanee el código de barras..."
+                 value={scanBuffer}
+                 onChange={(e) => setScanBuffer(e.target.value)}
+                 onKeyDown={handleKeyDown}
+                 className="bg-white"
+               />
+             </div>
+             <div className="grid grid-cols-2 gap-4">
+               <div className="space-y-2">
+                 <Label>Tipo</Label>
+                 <Select value={formData.tipo_movimiento} onValueChange={(v: TipoMovimiento) => setFormData({ ...formData, tipo_movimiento: v })}>
+                   <SelectTrigger><SelectValue /></SelectTrigger>
+                   <SelectContent>
+                     <SelectItem value="entrada">Entrada (+)</SelectItem>
+                     <SelectItem value="salida">Salida (-)</SelectItem>
+                     <SelectItem value="caducado">Caducado/Baja</SelectItem>
+                   </SelectContent>
+                 </Select>
+               </div>
+               <div className="space-y-2">
+                 <Label>Cantidad</Label>
+                 <Input type="number" min="1" value={formData.cantidad} onChange={e => setFormData({ ...formData, cantidad: e.target.value })} required />
+               </div>
+             </div>
+             <div className="space-y-2">
+               <Label>Lote / Existencia {selectedMedId && "(Filtrado)"}</Label>
+               <Select value={formData.id_existencia} onValueChange={(v) => setFormData({ ...formData, id_existencia: v })}>
+                 <SelectTrigger className={selectedMedId ? "bg-blue-50 border-blue-400" : ""}><SelectValue placeholder="Seleccione lote..." /></SelectTrigger>
+                 <SelectContent>
+                   {(selectedMedId ? existencias.filter(ex => ex.id_medicamento === selectedMedId) : existencias).map(ex => (
+                     <SelectItem key={ex.id_existencia} value={ex.id_existencia.toString()}>
+                       {getMedicamentoNombre(ex.id_existencia)} - [{ex.codigo_referencia}] (Stock: {ex.cantidad_actual})
+                     </SelectItem>
+                   ))}
+                 </SelectContent>
+               </Select>
+             </div>
+             <div className="space-y-2">
+               <Label>Observaciones</Label>
+               <Textarea placeholder="Motivo..." value={formData.observaciones} onChange={e => setFormData({ ...formData, observaciones: e.target.value })} />
+             </div>
+             <DialogFooter>
+               <Button type="submit" className="w-full bg-blue-600" disabled={mutation.isPending}>
+                 {mutation.isPending ? <Loader2 className="animate-spin mr-2" /> : "Confirmar Registro"}
+               </Button>
+             </DialogFooter>
+           </form>
+         </DialogContent>
       </Dialog>
     </div>
   );
