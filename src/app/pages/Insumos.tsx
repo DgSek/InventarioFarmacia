@@ -30,7 +30,7 @@ import { toast } from 'sonner';
 export function Insumos() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('insumos');
-  
+
   const [isInsumoDialogOpen, setIsInsumoDialogOpen] = useState(false);
   const [isSalidaDialogOpen, setIsSalidaDialogOpen] = useState(false);
   const [isEquipoDialogOpen, setIsEquipoDialogOpen] = useState(false);
@@ -118,7 +118,7 @@ export function Insumos() {
   const closeInsumoDialog = () => { setIsInsumoDialogOpen(false); setEditingInsumo(null); };
   const openSalidaDialog = () => { setSalidaFormData({ id_insumo: '', cantidad: '', observacion: '' }); setIsSalidaDialogOpen(true); };
   const closeSalidaDialog = () => setIsSalidaDialogOpen(false);
-  
+
   const openEquipoDialog = (equipo?: EquipoMedico) => {
     if (equipo) {
       setEditingEquipo(equipo);
@@ -129,7 +129,7 @@ export function Insumos() {
     }
     setIsEquipoDialogOpen(true);
   };
-  
+
   const closeEquipoDialog = () => { setIsEquipoDialogOpen(false); setEditingEquipo(null); };
 
   const getEstadoBadge = (estado: string) => {
@@ -145,19 +145,41 @@ export function Insumos() {
         <h2 className="text-2xl font-bold text-slate-800">Suministros y Equipo Médico</h2>
         <p className="text-slate-500">Gestión de inventario</p>
       </div>
-      
+
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="insumos" className="gap-2"><Box className="w-4 h-4" /> Insumos</TabsTrigger>
-          <TabsTrigger value="equipo" className="gap-2"><Stethoscope className="w-4 h-4" /> Equipo Médico</TabsTrigger>
+        <TabsList
+          className="grid w-full max-w-md grid-cols-2"
+          style={{ backgroundColor: 'rgba(71, 150, 183, 0.15)' }}
+        >
+          <TabsTrigger
+            value="insumos"
+            className="gap-2"
+            style={{
+              backgroundColor: activeTab === 'insumos' ? 'rgb(255, 255, 255)' : 'transparent',
+              color: '#313131'
+            }}
+          >
+            <Box className="w-4 h-4" /> Insumos
+          </TabsTrigger>
+          <TabsTrigger
+            value="equipo"
+            className="gap-2"
+            style={{
+              backgroundColor: activeTab === 'equipo' ? 'rgb(255, 255, 255)' : 'transparent',
+              color: '#313131'
+            }}
+          >
+            <Stethoscope className="w-4 h-4" /> Equipo Médico
+          </TabsTrigger>
         </TabsList>
-        
+
+
         <TabsContent value="insumos" className="space-y-6 pt-4">
           <div className="flex gap-3">
             <Button onClick={() => openInsumoDialog()} className="bg-blue-600"><Plus className="w-4 h-4 mr-2" /> Nuevo Insumo</Button>
             <Button onClick={openSalidaDialog} variant="outline"><ArrowDownCircle className="w-4 h-4 mr-2" /> Registrar Salida</Button>
           </div>
-          
+
           <Card>
             <CardContent className="p-0">
               <Table>
@@ -184,10 +206,10 @@ export function Insumos() {
             </CardContent>
           </Card>
         </TabsContent>
-        
+
         <TabsContent value="equipo" className="space-y-6 pt-4">
           <Button onClick={() => openEquipoDialog()}><Plus className="w-4 h-4 mr-2" /> Registrar Equipo</Button>
-          
+
           <Card>
             <CardContent className="p-0">
               <Table>
@@ -248,8 +270,8 @@ export function Insumos() {
         <DialogContent>
           <DialogHeader><DialogTitle>{editingInsumo ? 'Editar' : 'Nuevo'} Insumo</DialogTitle></DialogHeader>
           <form onSubmit={(e) => { e.preventDefault(); mutationInsumo.mutate({ ...insumoFormData, id_insumo: editingInsumo?.id_insumo }); }} className="space-y-4 pt-2">
-            <div><Label>Nombre del Insumo</Label><Input value={insumoFormData.nombre_insumo} onChange={(e) => setInsumoFormData({...insumoFormData, nombre_insumo: e.target.value})} required /></div>
-            <div><Label>Cantidad</Label><Input type="number" value={insumoFormData.cantidad_actual} onChange={(e) => setInsumoFormData({...insumoFormData, cantidad_actual: e.target.value})} required /></div>
+            <div><Label>Nombre del Insumo</Label><Input value={insumoFormData.nombre_insumo} onChange={(e) => setInsumoFormData({ ...insumoFormData, nombre_insumo: e.target.value })} required /></div>
+            <div><Label>Cantidad</Label><Input type="number" value={insumoFormData.cantidad_actual} onChange={(e) => setInsumoFormData({ ...insumoFormData, cantidad_actual: e.target.value })} required /></div>
             <DialogFooter><Button type="submit" disabled={mutationInsumo.isPending}>Guardar</Button></DialogFooter>
           </form>
         </DialogContent>
@@ -260,11 +282,11 @@ export function Insumos() {
         <DialogContent>
           <DialogHeader><DialogTitle>{editingEquipo ? 'Editar' : 'Nuevo'} Equipo Médico</DialogTitle></DialogHeader>
           <form onSubmit={(e) => { e.preventDefault(); mutationEquipo.mutate({ ...equipoFormData, id_equipo: editingEquipo?.id_equipo }); }} className="space-y-4 pt-2">
-            <div><Label>Nombre del Equipo</Label><Input value={equipoFormData.nombre_equipo} onChange={(e) => setEquipoFormData({...equipoFormData, nombre_equipo: e.target.value})} required /></div>
-            <div><Label>Descripción</Label><Textarea value={equipoFormData.descripcion} onChange={(e) => setEquipoFormData({...equipoFormData, descripcion: e.target.value})} required /></div>
+            <div><Label>Nombre del Equipo</Label><Input value={equipoFormData.nombre_equipo} onChange={(e) => setEquipoFormData({ ...equipoFormData, nombre_equipo: e.target.value })} required /></div>
+            <div><Label>Descripción</Label><Textarea value={equipoFormData.descripcion} onChange={(e) => setEquipoFormData({ ...equipoFormData, descripcion: e.target.value })} required /></div>
             <div>
               <Label>Estado Actual</Label>
-              <Select value={equipoFormData.estado} onValueChange={(val) => setEquipoFormData({...equipoFormData, estado: val})}>
+              <Select value={equipoFormData.estado} onValueChange={(val) => setEquipoFormData({ ...equipoFormData, estado: val })}>
                 <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Disponible">Disponible</SelectItem>
@@ -286,13 +308,13 @@ export function Insumos() {
           <form onSubmit={(e) => { e.preventDefault(); mutationSalida.mutate(salidaFormData); }} className="space-y-4 pt-2">
             <div>
               <Label>Insumo</Label>
-              <select className="w-full border rounded-md p-2 bg-white" value={salidaFormData.id_insumo} onChange={(e) => setSalidaFormData({...salidaFormData, id_insumo: e.target.value})} required>
+              <select className="w-full border rounded-md p-2 bg-white" value={salidaFormData.id_insumo} onChange={(e) => setSalidaFormData({ ...salidaFormData, id_insumo: e.target.value })} required>
                 <option value="">Seleccione...</option>
                 {insumos.map(i => <option key={i.id_insumo} value={i.id_insumo}>{i.nombre_insumo} ({i.cantidad_actual} disp.)</option>)}
               </select>
             </div>
-            <div><Label>Cantidad</Label><Input type="number" value={salidaFormData.cantidad} onChange={(e) => setSalidaFormData({...salidaFormData, cantidad: e.target.value})} required /></div>
-            <div><Label>Observación / Motivo</Label><Textarea value={salidaFormData.observacion} onChange={(e) => setSalidaFormData({...salidaFormData, observacion: e.target.value})} /></div>
+            <div><Label>Cantidad</Label><Input type="number" value={salidaFormData.cantidad} onChange={(e) => setSalidaFormData({ ...salidaFormData, cantidad: e.target.value })} required /></div>
+            <div><Label>Observación / Motivo</Label><Textarea value={salidaFormData.observacion} onChange={(e) => setSalidaFormData({ ...salidaFormData, observacion: e.target.value })} /></div>
             <DialogFooter><Button type="submit" disabled={mutationSalida.isPending} className="bg-red-600 hover:bg-red-700 text-white">Confirmar Egreso</Button></DialogFooter>
           </form>
         </DialogContent>
