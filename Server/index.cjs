@@ -1,9 +1,6 @@
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
-const path = require('path');
-
-// 1. CARGA PRIMERO LAS VARIABLES
 require('dotenv').config();
 
 const app = express();
@@ -11,17 +8,18 @@ app.use(cors());
 app.use(express.json());
 
 const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  password: String(process.env.DB_PASSWORD), 
-  port: process.env.DB_PORT || 5432,
-  ssl: false 
+  user: process.env.DB_FARMACIA_USER,       
+  host: process.env.DB_FARMACIA_HOST,     
+  database: process.env.DB_FARMACIA_NAME,   
+  password: String(process.env.DB_FARMACIA_PASSWORD), 
+  port: process.env.DB_FARMACIA_PORT || 5432,
+  ssl: false,
+  options: "-c search_path=farmacia"       
 });
 
 pool.query('SELECT NOW()', (err) => {
   if (err) console.error('❌ Error de conexión:', err.message);
-  else console.log('✅ Conexión exitosa a PostgreSQL');
+  else console.log('✅ Conexión exitosa a PostgreSQL (Esquema: farmacia)');
 });
 
 // --- MEDICAMENTOS ---
@@ -105,6 +103,7 @@ app.post('/api/existencias', async (req, res) => {
 
 app.get('/api/movimientos', async (req, res) => {
   try {
+    // Ajustado a ORDER BY fecha (como indicaste anteriormente)
     const result = await pool.query('SELECT * FROM Movimientos ORDER BY fecha DESC'); 
     res.json(result.rows || []);
   } catch (err) {
@@ -185,6 +184,7 @@ app.delete('/api/insumos/:id', async (req, res) => {
 
 app.get('/api/insumos/salidas', async (req, res) => {
   try {
+    // Cambiado de fecha_salida a fecha para coincidir con tu esquema
     const result = await pool.query('SELECT * FROM Salidas_Insumos ORDER BY fecha DESC');
     res.json(result.rows || []);
   } catch (err) {
@@ -241,7 +241,7 @@ app.put('/api/equipo-medico/:id', async (req, res) => {
   const { nombre_equipo, descripcion, estado } = req.body;
   try {
     const result = await pool.query(
-      'UPDATE Equipo_Medico SET nombre_equipo=$1, descripcion=$2, estado=$3 WHERE id_equipo=$4 RETURNING *',
+      `UPDATE Equipo_Medico SET nombre_equipo=$1, descripcion=$2, estado=$3 WHERE id_equipo=$4 RETURNING *`,
       [nombre_equipo, descripcion, estado, id]
     );
     res.json(result.rows[0]);

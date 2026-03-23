@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
-import { Plus, ArrowUpCircle, ArrowDownCircle, XCircle, Calendar, User, Loader2, Barcode, Package, Box, ClipboardList } from 'lucide-react';
+import { Plus, ArrowUpCircle, ArrowDownCircle, XCircle, User, Loader2, Barcode, Package, Box, ClipboardList } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function Movimientos() {
@@ -40,6 +40,7 @@ export function Movimientos() {
     tipo_movimiento: 'salida' as TipoMovimiento,
     cantidad: '',
     observaciones: '',
+    folio: '', // Estado para el nuevo campo
   });
 
   // --- AUTO-FOCUS ---
@@ -159,12 +160,13 @@ export function Movimientos() {
       cantidad: cant,
       id_usuario: usuarioActual?.id_usuario || 1,
       observaciones: formData.observaciones,
+      // folio: formData.folio // Lógica futura
     });
   };
 
   const closeDialog = () => {
     setIsDialogOpen(false);
-    setFormData({ id_existencia: '', tipo_movimiento: 'salida', cantidad: '', observaciones: '' });
+    setFormData({ id_existencia: '', tipo_movimiento: 'salida', cantidad: '', observaciones: '', folio: '' });
     setScanBuffer('');
     setSelectedMedId(null);
   };
@@ -178,7 +180,7 @@ export function Movimientos() {
           <h2 className="text-2xl font-semibold text-gray-900">Historial de Movimientos</h2>
           <p className="text-gray-600 mt-1">Auditoría de inventario en tiempo real</p>
         </div>
-        <Button onClick={() => setIsDialogOpen(true)} className="bg-[#4796B7]">
+        <Button onClick={() => setIsDialogOpen(true)} className="bg-[#4796B7] hover:bg-[#3a7da1]">
           <Plus className="w-4 h-4 mr-2" /> Nuevo Registro Med.
         </Button>
       </div>
@@ -223,7 +225,7 @@ export function Movimientos() {
           <TabsList className="h-auto bg-transparent p-0 border-0 gap-8 w-auto rounded-none">
             <TabsTrigger
               value="medicamentos"
-              className="flex items-center gap-2 px-1 pb-3 pt-0 rounded-none bg-transparent border-b-2 text-slate-400 data-[state=active]:border-b-cyan-500 data-[state=active]:text-cyan-600 data-[state=active]:shadow-none focus-visible:ring-0"
+              className="flex items-center gap-2 px-1 pb-3 pt-0 rounded-none bg-transparent border-b-2 text-slate-400 data-[state=active]:border-b-[#4796B7] data-[state=active]:text-[#4796B7] data-[state=active]:shadow-none focus-visible:ring-0"
             >
               <Package className="w-4 h-4" />
               <span>Medicamentos</span>
@@ -231,7 +233,7 @@ export function Movimientos() {
 
             <TabsTrigger
               value="insumos"
-              className="flex items-center gap-2 px-1 pb-3 pt-0 rounded-none bg-transparent border-b-2 text-slate-400 data-[state=active]:border-b-cyan-500 data-[state=active]:text-cyan-600 data-[state=active]:shadow-none focus-visible:ring-0"
+              className="flex items-center gap-2 px-1 pb-3 pt-0 rounded-none bg-transparent border-b-2 text-slate-400 data-[state=active]:border-b-[#4796B7] data-[state=active]:text-[#4796B7] data-[state=active]:shadow-none focus-visible:ring-0"
             >
               <Box className="w-4 h-4" />
               <span>Salidas de Insumos</span>
@@ -288,12 +290,12 @@ export function Movimientos() {
             </Card>
           </TabsContent>
 
-          {/* TAB SALIDAS DE INSUMOS (REEMPLAZANDO EQUIPO MÉDICO) */}
+          {/* TAB SALIDAS DE INSUMOS */}
           <TabsContent value="insumos" className="mt-6">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                    <ClipboardList className="w-5 h-5 text-blue-600" />
+                    <ClipboardList className="w-5 h-5 text-[#4796B7]" />
                     Historial de Egresos - Suministros
                 </CardTitle>
               </CardHeader>
@@ -311,7 +313,7 @@ export function Movimientos() {
                     {salidasInsumos.length > 0 ? (
                       salidasInsumos
                         .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
-                        .map((s: SalidaInsumo) => (
+                        .map((s: any) => (
                         <TableRow key={s.id_salida}>
                           <TableCell className="pl-6 text-xs font-mono">
                             {new Date(s.fecha).toLocaleString()}
@@ -342,12 +344,13 @@ export function Movimientos() {
         </Tabs>
       </div>
 
-      {/* --- EL DIALOG SE MANTIENE IGUAL PARA MEDICAMENTOS --- */}
+      {/* DIALOG NUEVO REGISTRO */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        {/* ... (Contenido del Dialog de medicamentos que ya tenías) ... */}
         <DialogContent className="sm:max-w-[450px]">
            <DialogHeader><DialogTitle>Nuevo Movimiento de Stock</DialogTitle></DialogHeader>
            <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+            
+            {/* Escaneo */}
             <div className="bg-blue-50 p-3 rounded-lg border-2 border-dashed border-blue-300 space-y-2">
                <Label className="flex items-center gap-2 text-blue-800 font-bold"><Barcode className="w-4 h-4" /> Escanee el producto</Label>
                <Input
@@ -359,6 +362,24 @@ export function Movimientos() {
                  className="bg-white"
                />
              </div>
+
+             {/* Campo Folio (Dropdown con búsqueda) */}
+             <div className="space-y-2">
+                <Label htmlFor="folio-input">Folio de Referencia</Label>
+                <Input 
+                  id="folio-input"
+                  list="folios-list" 
+                  placeholder="Escriba o seleccione un folio..." 
+                  value={formData.folio}
+                  onChange={(e) => setFormData({...formData, folio: e.target.value})}
+                />
+                <datalist id="folios-list">
+                  <option value="FOL-2024-001" />
+                  <option value="FOL-2024-002" />
+                  <option value="URG-SH-882" />
+                </datalist>
+              </div>
+
              <div className="grid grid-cols-2 gap-4">
                <div className="space-y-2">
                  <Label>Tipo</Label>
@@ -376,6 +397,7 @@ export function Movimientos() {
                  <Input type="number" min="1" value={formData.cantidad} onChange={e => setFormData({ ...formData, cantidad: e.target.value })} required />
                </div>
              </div>
+
              <div className="space-y-2">
                <Label>Lote / Existencia {selectedMedId && "(Filtrado)"}</Label>
                <Select value={formData.id_existencia} onValueChange={(v) => setFormData({ ...formData, id_existencia: v })}>
@@ -389,12 +411,14 @@ export function Movimientos() {
                  </SelectContent>
                </Select>
              </div>
+
              <div className="space-y-2">
                <Label>Observaciones</Label>
                <Textarea placeholder="Motivo..." value={formData.observaciones} onChange={e => setFormData({ ...formData, observaciones: e.target.value })} />
              </div>
+
              <DialogFooter>
-               <Button type="submit" className="w-full bg-blue-600" disabled={mutation.isPending}>
+               <Button type="submit" className="w-full bg-[#4796B7] hover:bg-[#3a7da1]" disabled={mutation.isPending}>
                  {mutation.isPending ? <Loader2 className="animate-spin mr-2" /> : "Confirmar Registro"}
                </Button>
              </DialogFooter>
