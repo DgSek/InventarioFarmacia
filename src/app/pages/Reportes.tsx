@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { storage } from '../data/storage';
 import { useQuery } from '@tanstack/react-query';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
@@ -13,23 +13,39 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
-import { BarChart3, TrendingUp, Calendar, AlertTriangle, Package, FileText, Loader2, Filter, Search } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import { 
+  BarChart3, 
+  TrendingUp, 
+  Calendar, 
+  Loader2, 
+  Filter, 
+  Search, 
+  FileDown, 
+  ClipboardCheck 
+} from 'lucide-react';
+import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer, 
+  PieChart, 
+  Pie, 
+  Cell, 
+  Legend 
+} from 'recharts';
 import { Badge } from '../components/ui/badge';
+import * as XLSX from 'xlsx'; // Importante para la exportación
 
 export function Reportes() {
   const [mes, setMes] = useState(new Date().getMonth().toString());
   const [anio, setAnio] = useState(new Date().getFullYear().toString());
-  const [folio, setFolio] = useState('');
   const [folioInput, setFolioInput] = useState('');
   const [showFolioDropdown, setShowFolioDropdown] = useState(false);
 
-  // --- CARGA DE DATOS ASÍNCRONA ---
-  const { data: reporteConsumo = [], isLoading: loadingReporte } = useQuery({
-    queryKey: ['reporte-consumo', mes, anio],
-    queryFn: () => storage.getReporteConsumo(), // En producción, pasar mes/anio al API
-  });
-
+  // --- CARGA DE DATOS ---
   const { data: inventario = [], isLoading: loadingInv } = useQuery({
     queryKey: ['inventario-completo'],
     queryFn: () => storage.getInventarioCompleto(),
@@ -45,28 +61,69 @@ export function Reportes() {
     queryFn: () => storage.getExistencias(),
   });
 
-  // --- PROCESAMIENTO DE FOLIOS ---
-  const foliosDisponibles = existencias.map(ex => ex.codigo_referencia).filter(f => f != null);
-  const foliosFiltrados = foliosDisponibles.filter(f => 
-    f.toLowerCase().includes(folioInput.toLowerCase())
-  );
+  const { data: medicamentos = [] } = useQuery({
+    queryKey: ['medicamentos'],
+    queryFn: () => storage.getMedicamentos(),
+  });
 
-  const handleFiltrar = () => {
-    // Aquí puedes agregar la lógica de filtrado según el folio seleccionado
-    console.log('Filtrando con:', { mes, anio, folio });
+  // --- LÓGICA DE EXPORTACIÓN A EXCEL ---
+  const exportarExcel = () => {
+    // 1. Filtrar movimientos de SALIDA según filtros actuales
+    const datosFiltrados = movimientos.filter(m => {
+      const fechaMov = new Date(m.fecha);
+      const coincideMes = fechaMov.getMonth().toString() === mes;
+      const coincideAnio = fechaMov.getFullYear().toString() === anio;
+      const esSalida = m.tipo_movimiento === 'salida' || m.tipo_movimiento === 'caducado';
+      
+      let coincideFolio = true;
+      if (folioInput) {
+        const ex = existencias.find(e => e.id_existencia === m.id_existencia);
+        coincideFolio = ex?.codigo_referencia.toLowerCase().includes(folioInput.toLowerCase()) ?? false;
+      }
+
+      return coincideMes && coincideAnio && esSalida && coincideFolio;
+    });
+
+    if (datosFiltrados.length === 0) {
+      alert("No hay registros de salida para los filtros seleccionados.");
+      return;
+    }
+
+    // 2. Mapear datos para el archivo Excel (Cruce de tablas)
+    const reporteExcel = datosFiltrados.map(m => {
+      const ex = existencias.find(e => e.id_existencia === m.id_existencia);
+      const med = medicamentos.find(med => med.id_medicamento === ex?.id_medicamento);
+      
+      return {
+        'FECHA': new Date(m.fecha).toLocaleString(),
+        'MEDICAMENTO': med ? `${med.nombre} (${med.concentracion})` : 'No identificado',
+        'FOLIO / LOTE': ex?.codigo_referencia || 'N/A',
+        'OPERACIÓN': m.tipo_movimiento.toUpperCase(),
+        'CANTIDAD': m.cantidad,
+        'RESPONSABLE': 'Auxiliar_Turno_A', // Cambiar por m.nombre_usuario si está disponible
+        'OBSERVACIONES': m.observaciones || ''
+      };
+    });
+
+    // 3. Crear y descargar el archivo
+    const ws = XLSX.utils.json_to_sheet(reporteExcel);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Salidas");
+    
+    const nombreArchivo = `Reporte_Salidas_${meses[parseInt(mes)]}_${anio}.xlsx`;
+    XLSX.writeFile(wb, nombreArchivo);
   };
 
-  const handleSelectFolio = (selectedFolio: string) => {
-    setFolio(selectedFolio);
-    setFolioInput(selectedFolio);
-    setShowFolioDropdown(false);
-  };
+  // --- PROCESAMIENTO PARA GRÁFICOS ---
+  const foliosDisponibles = existencias.map(ex => ex.codigo_referencia).filter(Boolean);
+  const foliosFiltrados = foliosDisponibles.filter(f => f.toLowerCase().includes(folioInput.toLowerCase()));
 
-  // --- PROCESAMIENTO DE DATOS PARA GRÁFICOS ---
-  const topConsumo = reporteConsumo.slice(0, 10);
-  const dataBarChart = topConsumo.map(item => ({
-    name: item.nombre_medicamento,
-    cantidad: item.cantidad_total,
+  const dataBarChart = medicamentos.slice(0, 8).map(med => ({
+    name: med.nombre,
+    cantidad: movimientos.filter(m => {
+        const ex = existencias.find(e => e.id_existencia === m.id_existencia);
+        return ex?.id_medicamento === med.id_medicamento && m.tipo_movimiento === 'salida';
+    }).reduce((acc, curr) => acc + curr.cantidad, 0)
   }));
 
   const movimientosPorTipo = [
@@ -79,33 +136,34 @@ export function Reportes() {
   const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
   const anios = [2024, 2025, 2026];
 
-  const stats = {
-    totalEntradas: movimientos.filter(m => m.tipo_movimiento === 'entrada').reduce((sum, m) => sum + m.cantidad, 0),
-    totalSalidas: movimientos.filter(m => m.tipo_movimiento === 'salida').reduce((sum, m) => sum + m.cantidad, 0),
-    totalCaducados: movimientos.filter(m => m.tipo_movimiento === 'caducado').reduce((sum, m) => sum + m.cantidad, 0),
-  };
-
-  if (loadingReporte || loadingInv || loadingMovs) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen space-y-4">
-        <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
-        <p className="text-slate-500 font-medium">Generando análisis estadístico desde la base de datos...</p>
-      </div>
-    );
-  }
+  if (loadingInv || loadingMovs) return (
+    <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
+      <Loader2 className="w-10 h-10 animate-spin text-[#4796B7]" />
+      <p className="text-slate-500 font-medium">Analizando base de datos...</p>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-semibold text-gray-900">Reportes y Estadísticas</h2>
+          <h2 className="text-2xl font-bold text-slate-800">Reportes y Estadísticas</h2>
+          <p className="text-slate-500">Monitoreo de movimientos de farmacia</p>
         </div>
+        <Button 
+          onClick={exportarExcel} 
+          className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+        >
+          <FileDown className="w-4 h-4 mr-2" />
+          Descargar Reporte (Excel)
+        </Button>
       </div>
 
+      {/* Filtros */}
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center gap-4">
-            <Calendar className="w-5 h-5 text-gray-500" />
+            <Filter className="w-5 h-5 text-slate-400" />
             <div className="grid grid-cols-4 gap-4 flex-1">
               <div>
                 <Label>Mes de Análisis</Label>
@@ -126,29 +184,20 @@ export function Reportes() {
                 </Select>
               </div>
               <div className="relative">
-                <Label>Folio</Label>
+                <Label>Folio / Lote</Label>
                 <div className="relative">
                   <Input
-                    placeholder="Buscar o escribir folio..."
+                    placeholder="Buscar folio..."
                     value={folioInput}
-                    onChange={(e) => {
-                      setFolioInput(e.target.value);
-                      setShowFolioDropdown(true);
-                    }}
+                    onChange={(e) => { setFolioInput(e.target.value); setShowFolioDropdown(true); }}
                     onFocus={() => setShowFolioDropdown(true)}
                     onBlur={() => setTimeout(() => setShowFolioDropdown(false), 200)}
-                    className="pr-8"
                   />
                   <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  
                   {showFolioDropdown && foliosFiltrados.length > 0 && (
-                    <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
+                    <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-40 overflow-auto">
                       {foliosFiltrados.slice(0, 10).map((f, idx) => (
-                        <div
-                          key={idx}
-                          onClick={() => handleSelectFolio(f)}
-                          className="px-3 py-2 hover:bg-slate-100 cursor-pointer text-sm border-b last:border-b-0"
-                        >
+                        <div key={idx} onClick={() => { setFolioInput(f); setShowFolioDropdown(false); }} className="px-3 py-2 hover:bg-slate-50 cursor-pointer text-sm">
                           {f}
                         </div>
                       ))}
@@ -157,9 +206,9 @@ export function Reportes() {
                 </div>
               </div>
               <div className="flex items-end">
-                <Button onClick={handleFiltrar} className="w-full" style={{ backgroundColor: '#6DA2B3' }}>
-                  <Filter className="w-4 h-4 mr-2" />
-                  Filtrar
+                <Button className="w-full bg-[#4796B7] hover:bg-[#3a7da1]">
+                  <ClipboardCheck className="w-4 h-4 mr-2" />
+                  Aplicar Filtros
                 </Button>
               </div>
             </div>
@@ -167,45 +216,17 @@ export function Reportes() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="border-l-4 border-l-emerald-500">
-          <CardContent className="pt-6">
-            <p className="text-sm text-slate-500 font-medium">Entradas Totales</p>
-            <p className="text-2xl font-bold text-emerald-600">+{stats.totalEntradas}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-blue-500">
-          <CardContent className="pt-6">
-            <p className="text-sm text-slate-500 font-medium">Salidas Totales</p>
-            <p className="text-2xl font-bold text-blue-600">-{stats.totalSalidas}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-red-500">
-          <CardContent className="pt-6">
-            <p className="text-sm text-slate-500 font-medium">Mermas/Caducados</p>
-            <p className="text-2xl font-bold text-red-600">-{stats.totalCaducados}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-teal-500">
-          <CardContent className="pt-6">
-            <p className="text-sm text-slate-500 font-medium">Operaciones Históricas</p>
-            <p className="text-2xl font-bold text-slate-800">{movimientos.length}</p>
-          </CardContent>
-        </Card>
-      </div>
-
+      {/* Gráficos */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><BarChart3 className="w-5 h-5"/> Consumo por Medicamento</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle className="text-sm font-bold uppercase text-slate-500">Consumo de Medicamentos</CardTitle></CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={250}>
               <BarChart data={dataBarChart}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="name" fontSize={10} interval={0} angle={-30} textAnchor="end" height={60} />
+                <XAxis dataKey="name" fontSize={10} angle={-20} textAnchor="end" height={50} />
                 <YAxis fontSize={12} />
-                <Tooltip cursor={{fill: '#f1f5f9'}} />
+                <Tooltip cursor={{fill: '#f8fafc'}} />
                 <Bar dataKey="cantidad" fill="#6DA2B3" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -213,49 +234,45 @@ export function Reportes() {
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><TrendingUp className="w-5 h-5"/> Mix de Movimientos</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle className="text-sm font-bold uppercase text-slate-500">Distribución de Movimientos</CardTitle></CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={250}>
               <PieChart>
                 <Pie data={movimientosPorTipo} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
                   {movimientosPorTipo.map((_, index) => <Cell key={index} fill={COLORS[index % COLORS.length]} />)}
                 </Pie>
                 <Tooltip />
-                <Legend verticalAlign="bottom" height={36}/>
+                <Legend />
               </PieChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
       </div>
 
+      {/* Tabla Crítica */}
       <Card>
-        <CardHeader><CardTitle>Estado Crítico de Inventario</CardTitle></CardHeader>
-        <CardContent>
+        <CardHeader><CardTitle>Medicamentos en Nivel Crítico</CardTitle></CardHeader>
+        <CardContent className="p-0">
           <Table>
-            <TableHeader>
+            <TableHeader className="bg-slate-50">
               <TableRow>
-                <TableHead>Medicamento</TableHead>
+                <TableHead className="pl-6">Medicamento</TableHead>
                 <TableHead>Stock Actual</TableHead>
                 <TableHead>Mínimo</TableHead>
-                <TableHead>Estado</TableHead>
+                <TableHead className="pr-6">Acción</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {inventario.map((item) => {
-                const bajoStock = item.cantidad_total <= item.medicamento.stock_minimo;
-                return (
-                  <TableRow key={item.medicamento.id_medicamento}>
-                    <TableCell className="font-medium">{item.medicamento.nombre}</TableCell>
-                    <TableCell className={`font-bold ${bajoStock ? 'text-red-600' : 'text-emerald-600'}`}>{item.cantidad_total}</TableCell>
-                    <TableCell className="text-slate-500">{item.medicamento.stock_minimo}</TableCell>
-                    <TableCell>
-                      {bajoStock ? <Badge variant="destructive">Reabastecer</Badge> : <Badge variant="outline" className="text-emerald-600 border-emerald-200 bg-emerald-50">Suficiente</Badge>}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
+              {inventario.filter(item => item.cantidad_total <= item.medicamento.stock_minimo).map((item) => (
+                <TableRow key={item.medicamento.id_medicamento}>
+                  <TableCell className="font-bold pl-6">{item.medicamento.nombre}</TableCell>
+                  <TableCell className="text-red-600 font-bold">{item.cantidad_total}</TableCell>
+                  <TableCell>{item.medicamento.stock_minimo}</TableCell>
+                  <TableCell className="pr-6">
+                    <Badge variant="destructive">Reabastecer Urgente</Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
         </CardContent>
