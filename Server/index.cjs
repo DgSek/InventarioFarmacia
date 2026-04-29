@@ -112,25 +112,46 @@ app.get('/api/movimientos', async (req, res) => {
 });
 
 app.post('/api/movimientos', async (req, res) => {
-  const { id_existencia, tipo_movimiento, cantidad, id_usuario, observaciones } = req.body;
+  const { id_existencia, tipo_movimiento, cantidad, id_usuario, observaciones, folio } = req.body;
+  
   const tipo = (tipo_movimiento || '').toLowerCase();
   const operador = (tipo === 'entrada') ? '+' : '-';
 
   try {
     await pool.query('BEGIN');
+
+    // Ahora que agregamos la columna 'folio', este query ya no fallará
     const nuevoMovimiento = await pool.query(
-      'INSERT INTO Movimientos (id_existencia, tipo_movimiento, cantidad, id_usuario, observaciones) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [id_existencia, tipo_movimiento, cantidad, id_usuario, observaciones]
+      `INSERT INTO farmacia.Movimientos (id_existencia, tipo_movimiento, cantidad, id_usuario, observaciones, folio) 
+       VALUES ($1, $2, $3, $4, $5, $6) 
+       RETURNING *`,
+      [id_existencia, tipo_movimiento, cantidad, id_usuario, observaciones, folio]
     );
+
     await pool.query(
-      `UPDATE Existencias SET cantidad_actual = cantidad_actual ${operador} $1 WHERE id_existencia = $2`,
+      `UPDATE farmacia.Existencias SET cantidad_actual = cantidad_actual ${operador} $1 WHERE id_existencia = $2`,
       [cantidad, id_existencia]
     );
+
     await pool.query('COMMIT');
     res.json(nuevoMovimiento.rows[0]);
+
   } catch (err) {
     await pool.query('ROLLBACK');
-    res.status(500).json({ error: 'Error en la transacción' });
+    console.error('Error en transacción:', err);
+    res.status(500).json({ error: 'Error en la transacción', detalle: err.message });
+  }
+});
+
+// --- NO OLVIDES AGREGAR LA RUTA PARA LOS FOLIOS ---
+app.get('/api/folios-activos', async (req, res) => {
+  try {
+    // Como usas -c search_path=farmacia, encontrará la vista directamente
+    const folios = await pool.query('SELECT * FROM v_folios_activos');
+    res.json(folios.rows);
+  } catch (err) {
+    console.error('Error al obtener folios:', err);
+    res.status(500).json({ error: 'Error al consultar folios activos' });
   }
 });
 

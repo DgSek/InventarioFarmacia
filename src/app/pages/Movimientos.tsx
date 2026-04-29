@@ -40,7 +40,7 @@ export function Movimientos() {
     tipo_movimiento: 'salida' as TipoMovimiento,
     cantidad: '',
     observaciones: '',
-    folio: '', // Estado para el nuevo campo
+    folio: '', 
   });
 
   // --- AUTO-FOCUS ---
@@ -51,6 +51,11 @@ export function Movimientos() {
   }, [isDialogOpen]);
 
   // --- CARGA DE DATOS ---
+  const { data: foliosActivos = [] } = useQuery({
+    queryKey: ['folios-activos'],
+    queryFn: () => storage.getFoliosActivos(),
+  });
+
   const { data: movimientos = [], isLoading: loadingMovs } = useQuery({
     queryKey: ['movimientos'],
     queryFn: async () => {
@@ -91,7 +96,8 @@ export function Movimientos() {
       newData.tipo_movimiento,
       newData.cantidad,
       newData.id_usuario,
-      newData.observaciones
+      newData.observaciones,
+      newData.folio 
     ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['movimientos'] });
@@ -120,19 +126,10 @@ export function Movimientos() {
     if (e.key === 'Enter') {
       const barcode = scanBuffer.trim();
       const medEncontrado = medicamentos.find(m => m.codigo_barras === barcode);
-
       if (medEncontrado) {
         setSelectedMedId(medEncontrado.id_medicamento);
-        toast.success(`Medicamento: ${medEncontrado.nombre}`);
-        const loteConStock = existencias.find(ex =>
-          ex.id_medicamento === medEncontrado.id_medicamento && ex.cantidad_actual > 0
-        );
-        if (loteConStock) {
-          setFormData(prev => ({ ...prev, id_existencia: loteConStock.id_existencia.toString() }));
-        }
-      } else {
-        toast.error('Código no encontrado');
-        setSelectedMedId(null);
+        const lote = existencias.find(ex => ex.id_medicamento === medEncontrado.id_medicamento && ex.cantidad_actual > 0);
+        if (lote) setFormData(prev => ({ ...prev, id_existencia: lote.id_existencia.toString() }));
       }
       setScanBuffer('');
     }
@@ -142,17 +139,15 @@ export function Movimientos() {
     e.preventDefault();
     const cant = parseInt(formData.cantidad);
     const exId = parseInt(formData.id_existencia);
-    const exActual = existencias.find(e => e.id_existencia === exId);
-
     if (!exId || isNaN(cant)) {
-      toast.error('Seleccione un lote válido');
+      toast.error('Datos incompletos');
       return;
     }
 
-    if (formData.tipo_movimiento !== 'entrada' && exActual && exActual.cantidad_actual < cant) {
-      toast.error(`Stock insuficiente. Disponible: ${exActual.cantidad_actual}`);
-      return;
-    }
+    // MODIFICACIÓN: Limpieza del folio para guardar solo el ID en la BD
+    const folioID = formData.folio.includes('Fol-2026-') 
+      ? formData.folio.replace('Fol-2026-', '') 
+      : formData.folio;
 
     mutation.mutate({
       id_existencia: exId,
@@ -160,7 +155,7 @@ export function Movimientos() {
       cantidad: cant,
       id_usuario: usuarioActual?.id_usuario || 1,
       observaciones: formData.observaciones,
-      // folio: formData.folio // Lógica futura
+      folio: folioID // Mandamos solo el número (ej: "12")
     });
   };
 
@@ -185,7 +180,6 @@ export function Movimientos() {
         </Button>
       </div>
 
-      {/* Estadísticas */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="md:col-span-1">
           <CardContent className="pt-6">
@@ -230,7 +224,6 @@ export function Movimientos() {
               <Package className="w-4 h-4" />
               <span>Medicamentos</span>
             </TabsTrigger>
-
             <TabsTrigger
               value="insumos"
               className="flex items-center gap-2 px-1 pb-3 pt-0 rounded-none bg-transparent border-b-2 text-slate-400 data-[state=active]:border-b-[#4796B7] data-[state=active]:text-[#4796B7] data-[state=active]:shadow-none focus-visible:ring-0"
@@ -240,7 +233,6 @@ export function Movimientos() {
             </TabsTrigger>
           </TabsList>
 
-          {/* TAB MEDICAMENTOS */}
           <TabsContent value="medicamentos" className="mt-6">
             <Card>
               <CardContent className="p-0">
@@ -248,6 +240,7 @@ export function Movimientos() {
                   <TableHeader className="bg-slate-50">
                     <TableRow>
                       <TableHead>Fecha</TableHead>
+                      <TableHead>Folio</TableHead>
                       <TableHead>Insumo / Medicamento</TableHead>
                       <TableHead>Operación</TableHead>
                       <TableHead>Cantidad</TableHead>
@@ -261,6 +254,16 @@ export function Movimientos() {
                       .map((m) => (
                         <TableRow key={m.id_movimiento}>
                           <TableCell className="text-xs font-mono">{new Date(m.fecha).toLocaleString()}</TableCell>
+                          <TableCell>
+                            {m.folio ? (
+                              <Badge variant="secondary" className="font-mono text-[10px] bg-slate-100">
+                                {/* MODIFICACIÓN: Mostrar con etiqueta visual en la tabla */}
+                                Fol-2026-{m.folio}
+                              </Badge>
+                            ) : (
+                              <span className="text-slate-300">-</span>
+                            )}
+                          </TableCell>
                           <TableCell>
                             <div className="flex flex-col">
                               <span className="font-medium text-slate-900">{getMedicamentoNombre(m.id_existencia)}</span>
@@ -290,7 +293,6 @@ export function Movimientos() {
             </Card>
           </TabsContent>
 
-          {/* TAB SALIDAS DE INSUMOS */}
           <TabsContent value="insumos" className="mt-6">
             <Card>
               <CardHeader>
@@ -315,25 +317,15 @@ export function Movimientos() {
                         .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
                         .map((s: any) => (
                         <TableRow key={s.id_salida}>
-                          <TableCell className="pl-6 text-xs font-mono">
-                            {new Date(s.fecha).toLocaleString()}
-                          </TableCell>
-                          <TableCell className="font-medium text-slate-900">
-                            {getInsumoNombre(s.id_insumo)}
-                          </TableCell>
-                          <TableCell className="text-red-600 font-bold">
-                            -{s.cantidad}
-                          </TableCell>
-                          <TableCell className="text-sm text-slate-500 italic">
-                            {s.observacion || 'Sin observaciones'}
-                          </TableCell>
+                          <TableCell className="pl-6 text-xs font-mono">{new Date(s.fecha).toLocaleString()}</TableCell>
+                          <TableCell className="font-medium text-slate-900">{getInsumoNombre(s.id_insumo)}</TableCell>
+                          <TableCell className="text-red-600 font-bold">-{s.cantidad}</TableCell>
+                          <TableCell className="text-sm text-slate-500 italic">{s.observacion || 'Sin observaciones'}</TableCell>
                         </TableRow>
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={4} className="text-center py-10 text-slate-400">
-                          No se han registrado salidas de insumos aún.
-                        </TableCell>
+                        <TableCell colSpan={4} className="text-center py-10 text-slate-400">No hay registros.</TableCell>
                       </TableRow>
                     )}
                   </TableBody>
@@ -344,13 +336,11 @@ export function Movimientos() {
         </Tabs>
       </div>
 
-      {/* DIALOG NUEVO REGISTRO */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[450px]">
            <DialogHeader><DialogTitle>Nuevo Movimiento de Stock</DialogTitle></DialogHeader>
            <form onSubmit={handleSubmit} className="space-y-4 pt-4">
             
-            {/* Escaneo */}
             <div className="bg-blue-50 p-3 rounded-lg border-2 border-dashed border-blue-300 space-y-2">
                <Label className="flex items-center gap-2 text-blue-800 font-bold"><Barcode className="w-4 h-4" /> Escanee el producto</Label>
                <Input
@@ -363,27 +353,27 @@ export function Movimientos() {
                />
              </div>
 
-             {/* Campo Folio (Dropdown con búsqueda) */}
              <div className="space-y-2">
                 <Label htmlFor="folio-input">Folio de Referencia</Label>
                 <Input 
                   id="folio-input"
                   list="folios-list" 
-                  placeholder="Escriba o seleccione un folio..." 
+                  placeholder="Seleccione Fol-2026-ID..." 
                   value={formData.folio}
                   onChange={(e) => setFormData({...formData, folio: e.target.value})}
                 />
                 <datalist id="folios-list">
-                  <option value="FOL-2024-001" />
-                  <option value="FOL-2024-002" />
-                  <option value="URG-SH-882" />
+                  {foliosActivos.map((f: any) => (
+                    // MODIFICACIÓN: Solo visual para el usuario en el dropdown
+                    <option key={f.id_folio} value={`Fol-2026-${f.id_folio}`} />
+                  ))}
                 </datalist>
               </div>
 
              <div className="grid grid-cols-2 gap-4">
                <div className="space-y-2">
                  <Label>Tipo</Label>
-                 <Select value={formData.tipo_movimiento} onValueChange={(v: TipoMovimiento) => setFormData({ ...formData, tipo_movimiento: v })}>
+                 <Select value={formData.tipo_movimiento} onValueChange={(v: any) => setFormData({ ...formData, tipo_movimiento: v })}>
                    <SelectTrigger><SelectValue /></SelectTrigger>
                    <SelectContent>
                      <SelectItem value="entrada">Entrada (+)</SelectItem>

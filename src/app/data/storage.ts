@@ -62,17 +62,26 @@ export const storage = {
     return Array.isArray(data) ? data : [];
   },
 
+  // CORRECCIÓN: Ahora recibe el folio y usa fetch
   async registrarMovimiento(
     id_existencia: number,
     tipo_movimiento: TipoMovimiento,
     cantidad: number,
     id_usuario: number,
-    observaciones?: string
+    observaciones?: string,
+    folio?: string // Parámetro opcional añadido
   ): Promise<Movimiento | null> {
     const response = await fetch(`${API_URL}/movimientos`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id_existencia, tipo_movimiento, cantidad, id_usuario, observaciones }),
+      body: JSON.stringify({ 
+        id_existencia, 
+        tipo_movimiento, 
+        cantidad, 
+        id_usuario, 
+        observaciones,
+        folio // Se envía al backend
+      }),
     });
 
     if (!response.ok) return null;
@@ -95,7 +104,6 @@ export const storage = {
     return await response.json();
   },
 
-  // CORRECCIÓN: Función para actualizar insumos (resuelve error de tipos)
   async updateInsumo(insumo: Insumo): Promise<Insumo> {
     const response = await fetch(`${API_URL}/insumos/${insumo.id_insumo}`, {
       method: 'PUT',
@@ -105,7 +113,6 @@ export const storage = {
     return await response.json();
   },
 
-  // NUEVO: Función para eliminar insumos físicamente de la DB
   async deleteInsumo(id_insumo: number): Promise<boolean> {
     const response = await fetch(`${API_URL}/insumos/${id_insumo}`, {
       method: 'DELETE',
@@ -153,12 +160,20 @@ export const storage = {
     return await response.json();
   },
 
-  // NUEVO: Función para eliminar equipo médico
   async deleteEquipoMedico(id_equipo: number): Promise<boolean> {
     const response = await fetch(`${API_URL}/equipo-medico/${id_equipo}`, {
       method: 'DELETE',
     });
     return response.ok;
+  },
+
+  // --- FOLIOS (Donaciones) ---
+  // CORRECCIÓN: Usa fetch para pedir los folios a tu API local
+  async getFoliosActivos(): Promise<any[]> {
+    const response = await fetch(`${API_URL}/folios-activos`);
+    if (!response.ok) return [];
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
   },
 
   // --- UTILIDADES E INVENTARIO ---

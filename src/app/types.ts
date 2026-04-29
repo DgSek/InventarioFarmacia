@@ -11,6 +11,7 @@ export interface Medicamento {
   ubicacion: string;
   estante?: string;
   sede: string;
+  folio?: string;
 }
 
 export interface Existencia {
@@ -31,6 +32,7 @@ export interface Movimiento {
   fecha: string;
   id_usuario: number;
   observaciones?: string;
+  folio?: string;
 }
 
 export interface Usuario {
