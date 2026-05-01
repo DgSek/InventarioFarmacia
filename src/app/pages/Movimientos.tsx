@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
-import { Plus, ArrowUpCircle, ArrowDownCircle, XCircle, User, Loader2, Barcode, Package, Box, ClipboardList } from 'lucide-react';
+import { Plus, ArrowUpCircle, ArrowDownCircle, XCircle, User, Loader2, Barcode, Package, Box, ClipboardList, Search, Check, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function Movimientos() {
@@ -107,31 +107,59 @@ export function Movimientos() {
     onError: () => toast.error('Error al registrar movimiento'),
   });
 
-  // --- HELPERS ACTUALIZADOS ---
+  // --- BÚSQUEDA HÍBRIDA SEGURA ---
+  const handleBusquedaProducto = (value: string) => {
+    setScanBuffer(value);
+    const cleanValue = value.trim().toLowerCase();
+
+    if (!cleanValue) {
+      setSelectedMedId(null);
+      setFormData(prev => ({ ...prev, id_existencia: '' }));
+      return;
+    }
+
+    // Buscar coincidencia exacta por código de barras
+    const porCodigo = medicamentos.find(m => m.codigo_barras && m.codigo_barras.trim().toLowerCase() === cleanValue);
+
+    if (porCodigo) {
+      setSelectedMedId(porCodigo.id_medicamento);
+      toast.success(`Producto detectado: ${porCodigo.nombre}`);
+      
+      // Auto-seleccionar el lote si tiene stock único disponible
+      const loteConStock = existencias.find(ex =>
+        ex.id_medicamento === porCodigo.id_medicamento && ex.cantidad_actual > 0
+      );
+      if (loteConStock) {
+        setFormData(prev => ({ ...prev, id_existencia: loteConStock.id_existencia.toString() }));
+      }
+    }
+  };
+
+  const seleccionarMedicamentoManual = (med: Medicamento) => {
+    setSelectedMedId(med.id_medicamento);
+    setScanBuffer(med.nombre);
+    setFormData(prev => ({ ...prev, id_existencia: '' }));
+    toast.success(`Seleccionado: ${med.nombre}`);
+  };
+
+  // Filtrado de sugerencias de texto sin autoselección inmediata
+  const sugerenciasMed = scanBuffer.trim() && !selectedMedId
+    ? medicamentos
+        .filter(m => m.activo && m.nombre.toLowerCase().includes(scanBuffer.toLowerCase()))
+        .slice(0, 3)
+    : [];
+
+  // --- HELPERS ---
   const getMedicamentoNombre = (idExistencia: number) => {
     const ex = existencias.find(e => e.id_existencia === idExistencia);
     if (!ex) return '---';
     const med = medicamentos.find(m => m.id_medicamento === ex.id_medicamento);
-    // El nombre viene del medicamento, pero la concentración ahora viene de la existencia
     return med ? med.nombre : 'No encontrado';
   };
 
   const getInsumoNombre = (idInsumo: number) => {
     const ins = insumos.find(i => i.id_insumo === idInsumo);
     return ins ? ins.nombre_insumo : 'Insumo no identificado';
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      const barcode = scanBuffer.trim();
-      const medEncontrado = medicamentos.find(m => m.codigo_barras === barcode);
-      if (medEncontrado) {
-        setSelectedMedId(medEncontrado.id_medicamento);
-        const lote = existencias.find(ex => ex.id_medicamento === medEncontrado.id_medicamento && ex.cantidad_actual > 0);
-        if (lote) setFormData(prev => ({ ...prev, id_existencia: lote.id_existencia.toString() }));
-      }
-      setScanBuffer('');
-    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -159,6 +187,11 @@ export function Movimientos() {
     setScanBuffer('');
     setSelectedMedId(null);
   };
+
+  // Filtrar las existencias por el ID del medicamento seleccionado
+  const existenciasFiltradas = selectedMedId
+    ? existencias.filter(ex => ex.id_medicamento === selectedMedId)
+    : [];
 
   if (loadingMovs || loadingSalidasIns) return <div className="p-10 flex justify-center"><Loader2 className="animate-spin" /></div>;
 
@@ -255,7 +288,7 @@ export function Movimientos() {
                             <div className="flex flex-col">
                               <span className="font-medium text-slate-900">
                                 {getMedicamentoNombre(m.id_existencia)}
-                                <span className="ml-1 text-blue-600">
+                                <span className="ml-1 text-blue-600 font-bold">
                                   ({existencias.find(e => e.id_existencia === m.id_existencia)?.concentracion})
                                 </span>
                               </span>
@@ -284,7 +317,6 @@ export function Movimientos() {
               </CardContent>
             </Card>
           </TabsContent>
-          {/* ... (Sección de insumos) */}
         </Tabs>
       </div>
 
@@ -293,16 +325,44 @@ export function Movimientos() {
            <DialogHeader><DialogTitle>Nuevo Movimiento de Stock</DialogTitle></DialogHeader>
            <form onSubmit={handleSubmit} className="space-y-4 pt-4">
             
-            <div className="bg-blue-50 p-3 rounded-lg border-2 border-dashed border-blue-300 space-y-2">
-               <Label className="flex items-center gap-2 text-blue-800 font-bold"><Barcode className="w-4 h-4" /> Escanee el producto</Label>
+            <div className="space-y-2">
+               <Label className="flex items-center gap-2 text-slate-700 font-bold"><Search className="w-4 h-4 text-blue-600" /> 1. Código o Nombre del Producto</Label>
                <Input
                  ref={inputRef}
-                 placeholder="Escanee el código de barras..."
+                 placeholder="Escanee código o escriba nombre..."
                  value={scanBuffer}
-                 onChange={(e) => setScanBuffer(e.target.value)}
-                 onKeyDown={handleKeyDown}
+                 onChange={(e) => handleBusquedaProducto(e.target.value)}
+                 className="bg-slate-50 border-slate-300"
                />
              </div>
+
+             {/* Sugerencias manuales sin autoselección prematura */}
+             {sugerenciasMed.length > 0 && (
+               <div className="bg-slate-50 p-2 rounded-lg border border-slate-200 divide-y divide-slate-200">
+                 <p className="text-[10px] text-slate-400 font-bold mb-1 px-1">Medicamentos sugeridos:</p>
+                 {sugerenciasMed.map((m) => (
+                   <div 
+                     key={m.id_medicamento} 
+                     onClick={() => seleccionarMedicamentoManual(m)}
+                     className="flex justify-between items-center py-2 px-1 cursor-pointer hover:bg-blue-50 rounded transition-colors"
+                   >
+                     <span className="text-xs font-bold text-slate-700">{m.nombre}</span>
+                     <span className="text-[10px] bg-slate-200 px-2 py-0.5 rounded text-slate-600 uppercase">{m.tipo_medicamento}</span>
+                   </div>
+                 ))}
+               </div>
+             )}
+
+             {selectedMedId ? (
+               <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-200 flex items-center gap-3">
+                 <div className="bg-emerald-500 p-2 rounded-full text-white"><Check className="w-4 h-4" /></div>
+                 <p className="text-xs text-emerald-800 font-bold">Medicamento: {medicamentos.find(m => m.id_medicamento === selectedMedId)?.nombre}</p>
+               </div>
+             ) : scanBuffer && sugerenciasMed.length === 0 && (
+               <div className="bg-amber-50 p-3 rounded-lg border border-amber-200 flex items-center gap-2 text-amber-700 text-xs font-medium">
+                 <AlertCircle className="w-4 h-4" /> No encontrado en catálogo.
+               </div>
+             )}
 
              <div className="space-y-2">
                 <Label>Folio de Referencia</Label>
@@ -342,13 +402,17 @@ export function Movimientos() {
              <div className="space-y-2">
                <Label>Presentación / Concentración</Label>
                <Select value={formData.id_existencia} onValueChange={(v) => setFormData({ ...formData, id_existencia: v })}>
-                 <SelectTrigger className={selectedMedId ? "bg-blue-50 border-blue-400" : ""}><SelectValue placeholder="Seleccione lote..." /></SelectTrigger>
+                 <SelectTrigger className={selectedMedId ? "bg-blue-50 border-blue-400" : ""}><SelectValue placeholder="Seleccione concentración..." /></SelectTrigger>
                  <SelectContent>
-                   {(selectedMedId ? existencias.filter(ex => ex.id_medicamento === selectedMedId) : existencias).map(ex => (
+                   {/* Se muestran solo las concentraciones disponibles del medicamento seleccionado */}
+                   {existenciasFiltradas.map(ex => (
                      <SelectItem key={ex.id_existencia} value={ex.id_existencia.toString()}>
-                       {getMedicamentoNombre(ex.id_existencia)} - {ex.concentracion} (Stock: {ex.cantidad_actual})
+                       {ex.concentracion} (Stock: {ex.cantidad_actual})
                      </SelectItem>
                    ))}
+                   {existenciasFiltradas.length === 0 && (
+                     <SelectItem value="disabled" disabled className="text-slate-400">No hay existencias disponibles</SelectItem>
+                   )}
                  </SelectContent>
                </Select>
              </div>

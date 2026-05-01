@@ -15,7 +15,7 @@ import {
   DialogFooter,
 } from '../components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
-import { Plus, Package, Calendar, Barcode, Loader2, AlertCircle, Beaker, Layers } from 'lucide-react';
+import { Plus, Package, Calendar, Barcode, Loader2, AlertCircle, Beaker, Layers, Search, Check } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function Existencias() {
@@ -23,9 +23,8 @@ export function Existencias() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Estado inicial actualizado con concentración
   const [scanData, setScanData] = useState({
-    codigo_barras_producto: '', 
+    input_busqueda: '',
     concentracion: '',      
     cantidad_actual: '',
     id_medicamento: null as number | null,
@@ -43,38 +42,51 @@ export function Existencias() {
     queryFn: () => storage.getMedicamentos(),
   });
 
-  // --- ESCANEO ---
-  const handleScanProducto = (code: string) => {
-    const cleanCode = code.trim();
-    if (!cleanCode) return;
+  // --- BÚSQUEDA SEGURA ---
+  const handleBusquedaProducto = (value: string) => {
+    // Actualizamos el texto escrito sin borrar la selección previa de inmediato
+    setScanData(prev => ({ ...prev, input_busqueda: value }));
+    const cleanValue = value.trim().toLowerCase();
 
-    const medEncontrado = medicamentos.find(m => m.codigo_barras === cleanCode);
+    if (!cleanValue) {
+      setScanData(prev => ({ ...prev, id_medicamento: null, nombre_medicamento: '' }));
+      return;
+    }
 
-    if (medEncontrado) {
-      setScanData({
-        codigo_barras_producto: cleanCode,
-        concentracion: '', 
-        cantidad_actual: '',   
-        id_medicamento: medEncontrado.id_medicamento,
-        nombre_medicamento: medEncontrado.nombre
-      });
-      toast.success(`Producto detectado: ${medEncontrado.nombre}`);
-    } else {
-      setScanData({ 
-        codigo_barras_producto: cleanCode, 
-        concentracion: '',
-        cantidad_actual: '',
-        id_medicamento: null, 
-        nombre_medicamento: '' 
-      });
-      toast.error("Código no registrado en el catálogo");
+    // Coincidencia EXACTA por código de barras (único caso donde se autoselecciona)
+    const porCodigo = medicamentos.find(m => m.codigo_barras && m.codigo_barras.trim().toLowerCase() === cleanValue);
+
+    if (porCodigo) {
+      setScanData(prev => ({
+        ...prev,
+        id_medicamento: porCodigo.id_medicamento,
+        nombre_medicamento: porCodigo.nombre
+      }));
+      toast.success(`Producto detectado: ${porCodigo.nombre}`);
     }
   };
 
-  // --- MUTACIÓN ACTUALIZADA ---
+  // Función para cuando el usuario hace clic manualmente en la sugerencia correcta
+  const seleccionarMedicamento = (med: Medicamento) => {
+    setScanData(prev => ({
+      ...prev,
+      input_busqueda: med.nombre,
+      id_medicamento: med.id_medicamento,
+      nombre_medicamento: med.nombre
+    }));
+    toast.success(`Seleccionado: ${med.nombre}`);
+  };
+
+  // Filtrar sugerencias en tiempo real basadas en lo que se escribe
+  const sugerencias = scanData.input_busqueda.trim() && !scanData.id_medicamento
+    ? medicamentos
+        .filter(m => m.activo && m.nombre.toLowerCase().includes(scanData.input_busqueda.toLowerCase()))
+        .slice(0, 3) // Mostramos máximo 3 para no saturar la vista
+    : [];
+
+  // --- MUTACIÓN ---
   const mutation = useMutation({
     mutationFn: async (newData: any) => {
-      // 1. Guardar o actualizar existencia con el campo concentración
       const existencia = await storage.saveExistencia({
         id_medicamento: newData.id_medicamento,
         concentracion: newData.concentracion.trim(), 
@@ -82,7 +94,6 @@ export function Existencias() {
         fecha_registro: new Date().toISOString().split('T')[0]
       });
       
-      // 2. Registrar movimiento para el historial
       await storage.registrarMovimiento(
         existencia.id_existencia, 
         'entrada', 
@@ -114,7 +125,7 @@ export function Existencias() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!scanData.id_medicamento || !scanData.cantidad_actual || !scanData.concentracion) {
-      toast.error('Complete la concentración y cantidad');
+      toast.error('Complete todos los campos antes de confirmar');
       return;
     }
     mutation.mutate(scanData);
@@ -123,7 +134,7 @@ export function Existencias() {
   const closeDialog = () => {
     setIsDialogOpen(false);
     setScanData({ 
-      codigo_barras_producto: '', 
+      input_busqueda: '', 
       concentracion: '', 
       cantidad_actual: '', 
       id_medicamento: null, 
@@ -133,7 +144,7 @@ export function Existencias() {
 
   const getMedicamentoInfo = (id: number) => medicamentos.find(m => m.id_medicamento === id);
 
-  // --- FILTRADO ---
+  // --- FILTRADO DE TABLA ---
   const filteredExistencias = existencias.filter(e => {
     const med = getMedicamentoInfo(e.id_medicamento);
     if (!med || !med.activo) return false;
@@ -250,25 +261,42 @@ export function Existencias() {
             
             <div className="space-y-2">
               <Label className="font-bold text-slate-700 flex items-center gap-2">
-                <Barcode className="w-4 h-4 text-blue-600" /> 1. Escanee el Producto
+                <Search className="w-4 h-4 text-blue-600" /> 1. Código o Nombre del Producto
               </Label>
               <Input 
                 autoFocus 
-                placeholder="Escanee código de barras..."
-                value={scanData.codigo_barras_producto}
-                onChange={(e) => handleScanProducto(e.target.value)}
+                placeholder="Escanee código o escriba nombre..."
+                value={scanData.input_busqueda}
+                onChange={(e) => handleBusquedaProducto(e.target.value)}
                 className="bg-slate-50 border-slate-300"
               />
             </div>
 
+            {/* Panel de selección si hay coincidencias por texto */}
+            {sugerencias.length > 0 && (
+              <div className="bg-slate-50 p-2 rounded-lg border border-slate-200 divide-y divide-slate-200">
+                <p className="text-[10px] text-slate-400 font-bold mb-1 px-1">¿Quiso decir alguno de estos?</p>
+                {sugerencias.map((m) => (
+                  <div 
+                    key={m.id_medicamento} 
+                    onClick={() => seleccionarMedicamento(m)}
+                    className="flex justify-between items-center py-2 px-1 cursor-pointer hover:bg-blue-50 rounded transition-colors"
+                  >
+                    <span className="text-xs font-bold text-slate-700">{m.nombre}</span>
+                    <span className="text-[10px] bg-slate-200 px-2 py-0.5 rounded text-slate-600 uppercase">{m.tipo_medicamento}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {scanData.id_medicamento ? (
               <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-200 flex items-center gap-3">
-                <div className="bg-emerald-500 p-2 rounded-full text-white"><Plus className="w-4 h-4" /></div>
+                <div className="bg-emerald-500 p-2 rounded-full text-white"><Check className="w-4 h-4" /></div>
                 <p className="text-xs text-emerald-800 font-bold">Medicamento: {scanData.nombre_medicamento}</p>
               </div>
-            ) : scanData.codigo_barras_producto && (
+            ) : scanData.input_busqueda && sugerencias.length === 0 && (
               <div className="bg-amber-50 p-3 rounded-lg border border-amber-200 flex items-center gap-2 text-amber-700 text-xs font-medium">
-                <AlertCircle className="w-4 h-4" /> No registrado en catálogo.
+                <AlertCircle className="w-4 h-4" /> No encontrado en catálogo.
               </div>
             )}
 
