@@ -4,7 +4,6 @@ export interface Medicamento {
   id_medicamento: number;
   tipo_medicamento: string;
   nombre: string;
-  concentracion: string;
   codigo_barras: string;
   stock_minimo: number;
   activo: boolean;
@@ -17,7 +16,7 @@ export interface Medicamento {
 export interface Existencia {
   id_existencia: number;
   id_medicamento: number;
-  codigo_referencia: string;
+  concentracion: string;
   cantidad_actual: number;
   fecha_registro: string;
 }

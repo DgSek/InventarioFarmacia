@@ -15,7 +15,7 @@ import {
   DialogFooter,
 } from '../components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
-import { Plus, Package, Calendar, Barcode, Loader2, AlertCircle, Hash, Tag } from 'lucide-react';
+import { Plus, Package, Calendar, Barcode, Loader2, AlertCircle, Beaker, Layers } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function Existencias() {
@@ -23,10 +23,10 @@ export function Existencias() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Estado inicial limpio
+  // Estado inicial actualizado con concentración
   const [scanData, setScanData] = useState({
     codigo_barras_producto: '', 
-    codigo_referencia: '',      
+    concentracion: '',      
     cantidad_actual: '',
     id_medicamento: null as number | null,
     nombre_medicamento: ''
@@ -43,28 +43,26 @@ export function Existencias() {
     queryFn: () => storage.getMedicamentos(),
   });
 
-  // --- ESCANEO REFORZADO: Busca en todo el catálogo fresco ---
+  // --- ESCANEO ---
   const handleScanProducto = (code: string) => {
     const cleanCode = code.trim();
     if (!cleanCode) return;
 
-    // Buscamos en la lista completa descargada de la DB
     const medEncontrado = medicamentos.find(m => m.codigo_barras === cleanCode);
 
     if (medEncontrado) {
       setScanData({
         codigo_barras_producto: cleanCode,
-        codigo_referencia: '', 
+        concentracion: '', 
         cantidad_actual: '',   
         id_medicamento: medEncontrado.id_medicamento,
         nombre_medicamento: medEncontrado.nombre
       });
       toast.success(`Producto detectado: ${medEncontrado.nombre}`);
     } else {
-      // RESET TOTAL: Si no existe, limpiamos ID para no guardar en el anterior
       setScanData({ 
         codigo_barras_producto: cleanCode, 
-        codigo_referencia: '',
+        concentracion: '',
         cantidad_actual: '',
         id_medicamento: null, 
         nombre_medicamento: '' 
@@ -73,16 +71,13 @@ export function Existencias() {
     }
   };
 
-  // --- MUTACIÓN CON SINCRONIZACIÓN FORZADA ---
+  // --- MUTACIÓN ACTUALIZADA ---
   const mutation = useMutation({
     mutationFn: async (newData: any) => {
-      // Formateamos el lote con el prefijo automático
-      const loteFormateado = `LOTE-${newData.codigo_referencia.trim().toUpperCase()}`;
-
-      // 1. Guardar o actualizar existencia en PostgreSQL
+      // 1. Guardar o actualizar existencia con el campo concentración
       const existencia = await storage.saveExistencia({
         id_medicamento: newData.id_medicamento,
-        codigo_referencia: loteFormateado, 
+        concentracion: newData.concentracion.trim(), 
         cantidad_actual: parseInt(newData.cantidad_actual),
         fecha_registro: new Date().toISOString().split('T')[0]
       });
@@ -93,15 +88,13 @@ export function Existencias() {
         'entrada', 
         parseInt(newData.cantidad_actual), 
         1, 
-        `Carga de stock: ${loteFormateado}`
+        `Ingreso de presentación: ${newData.concentracion}`
       );
       return existencia;
     },
     onSuccess: async () => {
-      // AJUSTE DE ESTABILIDAD: Espera para asegurar que la DB remota confirme el COMMIT
       await new Promise(resolve => setTimeout(resolve, 500)); 
 
-      // Refresco masivo de todas las consultas relacionadas
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['medicamentos'] }),
         queryClient.invalidateQueries({ queryKey: ['existencias'] }),
@@ -109,19 +102,19 @@ export function Existencias() {
         queryClient.invalidateQueries({ queryKey: ['movimientos'] })
       ]);
 
-      toast.success('Inventario sincronizado correctamente');
+      toast.success('Existencias actualizadas');
       closeDialog();
     },
     onError: (error: any) => {
       console.error(error);
-      toast.error('Error de comunicación con el servidor central');
+      toast.error('Error al guardar en el servidor');
     }
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!scanData.id_medicamento || !scanData.cantidad_actual || !scanData.codigo_referencia) {
-      toast.error('Complete todos los campos del lote');
+    if (!scanData.id_medicamento || !scanData.cantidad_actual || !scanData.concentracion) {
+      toast.error('Complete la concentración y cantidad');
       return;
     }
     mutation.mutate(scanData);
@@ -131,7 +124,7 @@ export function Existencias() {
     setIsDialogOpen(false);
     setScanData({ 
       codigo_barras_producto: '', 
-      codigo_referencia: '', 
+      concentracion: '', 
       cantidad_actual: '', 
       id_medicamento: null, 
       nombre_medicamento: '' 
@@ -140,14 +133,14 @@ export function Existencias() {
 
   const getMedicamentoInfo = (id: number) => medicamentos.find(m => m.id_medicamento === id);
 
-  // --- FILTRADO DE LA TABLA ---
+  // --- FILTRADO ---
   const filteredExistencias = existencias.filter(e => {
     const med = getMedicamentoInfo(e.id_medicamento);
     if (!med || !med.activo) return false;
     const term = searchTerm.toLowerCase();
     return (
       med.nombre.toLowerCase().includes(term) ||
-      (e.codigo_referencia && e.codigo_referencia.toLowerCase().includes(term))
+      (e.concentracion && e.concentracion.toLowerCase().includes(term))
     );
   });
 
@@ -169,18 +162,18 @@ export function Existencias() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-semibold text-gray-900">Control de Existencias</h2>
-          <p className="text-gray-600 mt-1">Gestión de lotes y stock en tiempo real</p>
+          <h2 className="text-2xl font-semibold text-gray-900">Existencias por Presentación</h2>
+          <p className="text-gray-600 mt-1">Gestión de stock basada en concentración</p>
         </div>
         <Button onClick={() => setIsDialogOpen(true)} className="bg-blue-600 hover:bg-blue-700 shadow-md">
-          <Barcode className="w-4 h-4 mr-2" /> Escaneo Rápido
+          <Plus className="w-4 h-4 mr-2" /> Nueva Presentación
         </Button>
       </div>
 
       <Card className="border-none shadow-sm bg-slate-50/50">
         <CardContent className="pt-6">
           <Input 
-            placeholder="Filtrar por medicamento o número de lote..." 
+            placeholder="Buscar por medicamento o concentración..." 
             value={searchTerm} 
             onChange={e => setSearchTerm(e.target.value)} 
             className="bg-white"
@@ -206,14 +199,14 @@ export function Existencias() {
                     </div>
                     <div>
                       <CardTitle className="text-lg font-bold">{medicamento.nombre}</CardTitle>
-                      <Badge variant="secondary" className="mt-1 text-[10px]">{medicamento.tipo_medicamento}</Badge>
+                      <Badge variant="secondary" className="mt-1 text-[10px] uppercase">{medicamento.tipo_medicamento}</Badge>
                     </div>
                   </div>
                   <div className="text-right">
                     <p className={`text-2xl font-black ${bajoStock ? 'text-red-600' : 'text-emerald-600'}`}>
                       {cantidadTotal}
                     </p>
-                    {bajoStock && <Badge variant="destructive" className="text-[10px] animate-pulse">Bajo Stock</Badge>}
+                    {bajoStock && <Badge variant="destructive" className="text-[10px] animate-pulse">Stock Crítico</Badge>}
                   </div>
                 </div>
               </CardHeader>
@@ -221,19 +214,21 @@ export function Existencias() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="pl-6 w-[40%]">Lote / Referencia</TableHead>
-                      <TableHead>Cantidad</TableHead>
-                      <TableHead className="text-right pr-6">Fecha Registro</TableHead>
+                      <TableHead className="pl-6 w-[40%]">Concentración / Presentación</TableHead>
+                      <TableHead>Stock Actual</TableHead>
+                      <TableHead className="text-right pr-6">Último Ingreso</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {exs.map((e) => (
                       <TableRow key={e.id_existencia}>
-                        <TableCell className="font-mono text-xs pl-6 text-slate-600">
-                          <Hash className="inline w-3 h-3 mr-2 text-slate-400"/>
-                          {e.codigo_referencia}
+                        <TableCell className="pl-6">
+                          <div className="flex items-center gap-2">
+                            <Beaker className="w-3 h-3 text-slate-400" />
+                            <span className="font-medium text-slate-700">{e.concentracion}</span>
+                          </div>
                         </TableCell>
-                        <TableCell className="font-bold text-slate-700">{e.cantidad_actual}</TableCell>
+                        <TableCell className="font-bold text-slate-900">{e.cantidad_actual}</TableCell>
                         <TableCell className="text-slate-500 text-xs text-right pr-6">
                           <Calendar className="inline w-3 h-3 mr-1"/>
                           {new Date(e.fecha_registro).toLocaleDateString()}
@@ -250,16 +245,16 @@ export function Existencias() {
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader><DialogTitle>Nuevo Ingreso de Stock</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Registro de Entrada de Stock</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 pt-4">
             
             <div className="space-y-2">
               <Label className="font-bold text-slate-700 flex items-center gap-2">
-                <Barcode className="w-4 h-4 text-blue-600" /> 1. Escaneo de Producto
+                <Barcode className="w-4 h-4 text-blue-600" /> 1. Escanee el Producto
               </Label>
               <Input 
                 autoFocus 
-                placeholder="Dispare el lector aquí..."
+                placeholder="Escanee código de barras..."
                 value={scanData.codigo_barras_producto}
                 onChange={(e) => handleScanProducto(e.target.value)}
                 className="bg-slate-50 border-slate-300"
@@ -273,28 +268,25 @@ export function Existencias() {
               </div>
             ) : scanData.codigo_barras_producto && (
               <div className="bg-amber-50 p-3 rounded-lg border border-amber-200 flex items-center gap-2 text-amber-700 text-xs font-medium">
-                <AlertCircle className="w-4 h-4" /> Producto no encontrado en catálogo.
+                <AlertCircle className="w-4 h-4" /> No registrado en catálogo.
               </div>
             )}
 
             <div className="space-y-2">
               <Label className="font-bold text-slate-700 flex items-center gap-2">
-                <Tag className="w-4 h-4 text-blue-600" /> 2. Número de Lote
+                <Layers className="w-4 h-4 text-blue-600" /> 2. Concentración / Variante
               </Label>
-              <div className="relative">
-                <span className="absolute left-3 top-2.5 text-slate-400 font-black text-sm select-none">LOTE-</span>
-                <Input 
-                  className="pl-14 bg-slate-50 border-slate-300" 
-                  placeholder="Ej: 001"
-                  value={scanData.codigo_referencia}
-                  onChange={e => setScanData({...scanData, codigo_referencia: e.target.value})}
-                  disabled={!scanData.id_medicamento}
-                />
-              </div>
+              <Input 
+                className="bg-slate-50 border-slate-300" 
+                placeholder="Ej: 500mg, 1g, 10ml..."
+                value={scanData.concentracion}
+                onChange={e => setScanData({...scanData, concentracion: e.target.value})}
+                disabled={!scanData.id_medicamento}
+              />
             </div>
 
             <div className="space-y-2">
-              <Label className="font-bold text-slate-700">3. Cantidad a ingresar</Label>
+              <Label className="font-bold text-slate-700">3. Cantidad a Ingresar</Label>
               <Input 
                 type="number" 
                 placeholder="0" 
@@ -308,11 +300,11 @@ export function Existencias() {
             <DialogFooter className="pt-4">
               <Button 
                 type="submit" 
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-12 shadow-lg transition-all active:scale-[0.98]" 
-                disabled={!scanData.id_medicamento || !scanData.codigo_referencia || mutation.isPending}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-12 shadow-lg transition-all" 
+                disabled={!scanData.id_medicamento || !scanData.concentracion || mutation.isPending}
               >
                 {mutation.isPending ? <Loader2 className="animate-spin mr-2" /> : <Plus className="mr-2 w-5 h-5" />}
-                Registrar Stock
+                Confirmar Ingreso
               </Button>
             </DialogFooter>
           </form>

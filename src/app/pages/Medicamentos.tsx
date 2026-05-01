@@ -33,11 +33,10 @@ export function Medicamentos() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterTipo, setFilterTipo] = useState<string>('todos');
 
-  // Estado inicial con las sedes solicitadas
+  // Estado inicial limpio (sin concentración)
   const [formData, setFormData] = useState({
     nombre: '',
     tipo_medicamento: '',
-    concentracion: '',
     codigo_barras: '',
     stock_minimo: '',
     ubicacion: '',
@@ -136,7 +135,6 @@ export function Medicamentos() {
       setFormData({
         nombre: medicamento.nombre,
         tipo_medicamento: medicamento.tipo_medicamento,
-        concentracion: medicamento.concentracion,
         codigo_barras: medicamento.codigo_barras || '',
         stock_minimo: medicamento.stock_minimo.toString(),
         ubicacion: medicamento.ubicacion,
@@ -147,7 +145,7 @@ export function Medicamentos() {
     } else {
       setEditingMedicamento(null);
       setFormData({
-        nombre: '', tipo_medicamento: '', concentracion: '', codigo_barras: '',
+        nombre: '', tipo_medicamento: '', codigo_barras: '',
         stock_minimo: '0', ubicacion: '', estante: '', activo: true,
         sede: 'Centro Comunitario'
       });
@@ -176,7 +174,6 @@ export function Medicamentos() {
         </Button>
       </div>
 
-      {/* --- FILTROS --- */}
       <Card className="border-none shadow-sm bg-slate-50/50">
         <CardContent className="pt-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -208,7 +205,6 @@ export function Medicamentos() {
         </CardContent>
       </Card>
 
-      {/* --- TABLA --- */}
       <Card className="shadow-sm border-slate-200">
         <CardContent className="p-0">
           <Table>
@@ -235,7 +231,7 @@ export function Medicamentos() {
                     <TableCell>
                       <div className="flex flex-col">
                         <span className="font-bold text-slate-900">{med.nombre}</span>
-                        <span className="text-[10px] text-slate-400 uppercase">{med.concentracion}</span>
+                        <span className="text-[10px] text-slate-400 uppercase">{med.tipo_medicamento}</span>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -311,7 +307,6 @@ export function Medicamentos() {
                 />
               </div>
 
-              {/* DROPDOWN DE SEDES */}
               <div className="bg-blue-50/50 p-3 rounded-lg border border-blue-100 space-y-2">
                 <Label className="text-blue-900 font-bold flex items-center gap-2">
                   <Building2 className="w-4 h-4" /> Sede
@@ -337,15 +332,9 @@ export function Medicamentos() {
               <Input value={formData.nombre} onChange={(e) => setFormData({ ...formData, nombre: e.target.value })} required />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="font-semibold">Tipo / Categoría</Label>
-                <Input value={formData.tipo_medicamento} onChange={(e) => setFormData({ ...formData, tipo_medicamento: e.target.value })} required />
-              </div>
-              <div className="space-y-2">
-                <Label className="font-semibold">Concentración</Label>
-                <Input value={formData.concentracion} onChange={(e) => setFormData({ ...formData, concentracion: e.target.value })} required />
-              </div>
+            <div className="space-y-2">
+              <Label className="font-semibold">Tipo / Categoría</Label>
+              <Input value={formData.tipo_medicamento} onChange={(e) => setFormData({ ...formData, tipo_medicamento: e.target.value })} required />
             </div>
 
             <div className="grid grid-cols-2 gap-4">

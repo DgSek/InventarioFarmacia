@@ -34,13 +34,14 @@ app.get('/api/medicamentos', async (req, res) => {
 });
 
 app.post('/api/medicamentos', async (req, res) => {
-  const { nombre, tipo_medicamento, concentracion, stock_minimo, ubicacion, estante, codigo_barras, activo, sede } = req.body;
+  // MODIFICACIÓN: Se eliminó concentracion de aquí
+  const { nombre, tipo_medicamento, stock_minimo, ubicacion, estante, codigo_barras, activo, sede } = req.body;
   try {
     const result = await pool.query(
       `INSERT INTO Medicamentos 
-      (nombre, tipo_medicamento, concentracion, stock_minimo, ubicacion, estante, codigo_barras, activo, sede) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [nombre, tipo_medicamento, concentracion, stock_minimo, ubicacion, estante, codigo_barras, activo, sede]
+      (nombre, tipo_medicamento, stock_minimo, ubicacion, estante, codigo_barras, activo, sede) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [nombre, tipo_medicamento, stock_minimo, ubicacion, estante, codigo_barras, activo, sede]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -50,13 +51,14 @@ app.post('/api/medicamentos', async (req, res) => {
 
 app.put('/api/medicamentos/:id', async (req, res) => {
   const { id } = req.params;
-  const { nombre, tipo_medicamento, concentracion, stock_minimo, ubicacion, estante, codigo_barras, activo, sede } = req.body;
+  // MODIFICACIÓN: Se eliminó concentracion de aquí
+  const { nombre, tipo_medicamento, stock_minimo, ubicacion, estante, codigo_barras, activo, sede } = req.body;
   try {
     const result = await pool.query(
       `UPDATE Medicamentos SET 
-      nombre=$1, tipo_medicamento=$2, concentracion=$3, stock_minimo=$4, ubicacion=$5, estante=$6, codigo_barras=$7, activo=$8, sede=$9
-      WHERE id_medicamento=$10 RETURNING *`,
-      [nombre, tipo_medicamento, concentracion, stock_minimo, ubicacion, estante, codigo_barras, activo, sede, id]
+      nombre=$1, tipo_medicamento=$2, stock_minimo=$3, ubicacion=$4, estante=$5, codigo_barras=$6, activo=$7, sede=$8
+      WHERE id_medicamento=$9 RETURNING *`,
+      [nombre, tipo_medicamento, stock_minimo, ubicacion, estante, codigo_barras, activo, sede, id]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -81,20 +83,23 @@ app.get('/api/existencias', async (req, res) => {
 });
 
 app.post('/api/existencias', async (req, res) => {
-  const { id_medicamento, codigo_referencia, cantidad_actual, fecha_registro } = req.body;
+  // MODIFICACIÓN: Se cambió codigo_referencia por concentracion
+  const { id_medicamento, concentracion, cantidad_actual, fecha_registro } = req.body;
   try {
+    // Si tienes un UNIQUE CONSTRAINT en (id_medicamento, concentracion), el ON CONFLICT funcionará
     const result = await pool.query(
-      `INSERT INTO Existencias (id_medicamento, codigo_referencia, cantidad_actual, fecha_registro) 
+      `INSERT INTO Existencias (id_medicamento, concentracion, cantidad_actual, fecha_registro) 
        VALUES ($1, $2, $3, $4) 
-       ON CONFLICT (codigo_referencia) 
+       ON CONFLICT (id_medicamento, concentracion) 
        DO UPDATE SET 
           cantidad_actual = Existencias.cantidad_actual + EXCLUDED.cantidad_actual,
           fecha_registro = CURRENT_TIMESTAMP
        RETURNING *`, 
-      [id_medicamento, codigo_referencia, cantidad_actual, fecha_registro]
+      [id_medicamento, concentracion, cantidad_actual, fecha_registro]
     );
     res.json(result.rows[0]);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -103,7 +108,6 @@ app.post('/api/existencias', async (req, res) => {
 
 app.get('/api/movimientos', async (req, res) => {
   try {
-    // Ajustado a ORDER BY fecha (como indicaste anteriormente)
     const result = await pool.query('SELECT * FROM Movimientos ORDER BY fecha DESC'); 
     res.json(result.rows || []);
   } catch (err) {
@@ -120,16 +124,15 @@ app.post('/api/movimientos', async (req, res) => {
   try {
     await pool.query('BEGIN');
 
-    // Ahora que agregamos la columna 'folio', este query ya no fallará
     const nuevoMovimiento = await pool.query(
-      `INSERT INTO farmacia.Movimientos (id_existencia, tipo_movimiento, cantidad, id_usuario, observaciones, folio) 
+      `INSERT INTO Movimientos (id_existencia, tipo_movimiento, cantidad, id_usuario, observaciones, folio) 
        VALUES ($1, $2, $3, $4, $5, $6) 
        RETURNING *`,
       [id_existencia, tipo_movimiento, cantidad, id_usuario, observaciones, folio]
     );
 
     await pool.query(
-      `UPDATE farmacia.Existencias SET cantidad_actual = cantidad_actual ${operador} $1 WHERE id_existencia = $2`,
+      `UPDATE Existencias SET cantidad_actual = cantidad_actual ${operador} $1 WHERE id_existencia = $2`,
       [cantidad, id_existencia]
     );
 
@@ -143,10 +146,8 @@ app.post('/api/movimientos', async (req, res) => {
   }
 });
 
-// --- NO OLVIDES AGREGAR LA RUTA PARA LOS FOLIOS ---
 app.get('/api/folios-activos', async (req, res) => {
   try {
-    // Como usas -c search_path=farmacia, encontrará la vista directamente
     const folios = await pool.query('SELECT * FROM v_folios_activos');
     res.json(folios.rows);
   } catch (err) {
@@ -205,7 +206,6 @@ app.delete('/api/insumos/:id', async (req, res) => {
 
 app.get('/api/insumos/salidas', async (req, res) => {
   try {
-    // Cambiado de fecha_salida a fecha para coincidir con tu esquema
     const result = await pool.query('SELECT * FROM Salidas_Insumos ORDER BY fecha DESC');
     res.json(result.rows || []);
   } catch (err) {

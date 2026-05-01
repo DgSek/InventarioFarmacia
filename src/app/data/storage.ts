@@ -25,7 +25,7 @@ export const storage = {
     const response = await fetch(`${API_URL}/medicamentos`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(medicamento),
+      body: JSON.stringify(medicamento), // Aquí ya no va concentración según tu nueva interfaz
     });
     return await response.json();
   },
@@ -50,6 +50,7 @@ export const storage = {
     const response = await fetch(`${API_URL}/existencias`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      // Ahora enviamos 'concentracion' en lugar de 'codigo_referencia'
       body: JSON.stringify(existencia),
     });
     return await response.json();
@@ -62,14 +63,13 @@ export const storage = {
     return Array.isArray(data) ? data : [];
   },
 
-  // CORRECCIÓN: Ahora recibe el folio y usa fetch
   async registrarMovimiento(
     id_existencia: number,
     tipo_movimiento: TipoMovimiento,
     cantidad: number,
     id_usuario: number,
     observaciones?: string,
-    folio?: string // Parámetro opcional añadido
+    folio?: string
   ): Promise<Movimiento | null> {
     const response = await fetch(`${API_URL}/movimientos`, {
       method: 'POST',
@@ -80,7 +80,7 @@ export const storage = {
         cantidad, 
         id_usuario, 
         observaciones,
-        folio // Se envía al backend
+        folio 
       }),
     });
 
@@ -167,8 +167,7 @@ export const storage = {
     return response.ok;
   },
 
-  // --- FOLIOS (Donaciones) ---
-  // CORRECCIÓN: Usa fetch para pedir los folios a tu API local
+  // --- FOLIOS ---
   async getFoliosActivos(): Promise<any[]> {
     const response = await fetch(`${API_URL}/folios-activos`);
     if (!response.ok) return [];

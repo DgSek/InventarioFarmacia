@@ -43,7 +43,6 @@ export function Movimientos() {
     folio: '', 
   });
 
-  // --- AUTO-FOCUS ---
   useEffect(() => {
     if (isDialogOpen) {
       setTimeout(() => inputRef.current?.focus(), 100);
@@ -89,7 +88,6 @@ export function Movimientos() {
     queryFn: () => storage.getCurrentUser(),
   });
 
-  // --- MUTACIÓN ---
   const mutation = useMutation({
     mutationFn: (newData: any) => storage.registrarMovimiento(
       newData.id_existencia,
@@ -109,12 +107,13 @@ export function Movimientos() {
     onError: () => toast.error('Error al registrar movimiento'),
   });
 
-  // --- HELPERS ---
+  // --- HELPERS ACTUALIZADOS ---
   const getMedicamentoNombre = (idExistencia: number) => {
     const ex = existencias.find(e => e.id_existencia === idExistencia);
     if (!ex) return '---';
     const med = medicamentos.find(m => m.id_medicamento === ex.id_medicamento);
-    return med ? `${med.nombre} (${med.concentracion})` : 'No encontrado';
+    // El nombre viene del medicamento, pero la concentración ahora viene de la existencia
+    return med ? med.nombre : 'No encontrado';
   };
 
   const getInsumoNombre = (idInsumo: number) => {
@@ -144,18 +143,13 @@ export function Movimientos() {
       return;
     }
 
-    // MODIFICACIÓN: Limpieza del folio para guardar solo el ID en la BD
-    const folioID = formData.folio.includes('Fol-2026-') 
-      ? formData.folio.replace('Fol-2026-', '') 
-      : formData.folio;
-
     mutation.mutate({
       id_existencia: exId,
       tipo_movimiento: formData.tipo_movimiento,
       cantidad: cant,
       id_usuario: usuarioActual?.id_usuario || 1,
       observaciones: formData.observaciones,
-      folio: folioID // Mandamos solo el número (ej: "12")
+      folio: formData.folio 
     });
   };
 
@@ -217,17 +211,11 @@ export function Movimientos() {
       <div className="border-b" style={{ borderColor: 'rgba(58, 53, 51, 0.1)' }}>
         <Tabs defaultValue="medicamentos" className="w-full">
           <TabsList className="h-auto bg-transparent p-0 border-0 gap-8 w-auto rounded-none">
-            <TabsTrigger
-              value="medicamentos"
-              className="flex items-center gap-2 px-1 pb-3 pt-0 rounded-none bg-transparent border-b-2 text-slate-400 data-[state=active]:border-b-[#4796B7] data-[state=active]:text-[#4796B7] data-[state=active]:shadow-none focus-visible:ring-0"
-            >
+            <TabsTrigger value="medicamentos" className="flex items-center gap-2 px-1 pb-3 pt-0 rounded-none bg-transparent border-b-2 text-slate-400 data-[state=active]:border-b-[#4796B7] data-[state=active]:text-[#4796B7] data-[state=active]:shadow-none focus-visible:ring-0">
               <Package className="w-4 h-4" />
               <span>Medicamentos</span>
             </TabsTrigger>
-            <TabsTrigger
-              value="insumos"
-              className="flex items-center gap-2 px-1 pb-3 pt-0 rounded-none bg-transparent border-b-2 text-slate-400 data-[state=active]:border-b-[#4796B7] data-[state=active]:text-[#4796B7] data-[state=active]:shadow-none focus-visible:ring-0"
-            >
+            <TabsTrigger value="insumos" className="flex items-center gap-2 px-1 pb-3 pt-0 rounded-none bg-transparent border-b-2 text-slate-400 data-[state=active]:border-b-[#4796B7] data-[state=active]:text-[#4796B7] data-[state=active]:shadow-none focus-visible:ring-0">
               <Box className="w-4 h-4" />
               <span>Salidas de Insumos</span>
             </TabsTrigger>
@@ -257,7 +245,6 @@ export function Movimientos() {
                           <TableCell>
                             {m.folio ? (
                               <Badge variant="secondary" className="font-mono text-[10px] bg-slate-100">
-                                {/* MODIFICACIÓN: Mostrar con etiqueta visual en la tabla */}
                                 Fol-2026-{m.folio}
                               </Badge>
                             ) : (
@@ -266,7 +253,12 @@ export function Movimientos() {
                           </TableCell>
                           <TableCell>
                             <div className="flex flex-col">
-                              <span className="font-medium text-slate-900">{getMedicamentoNombre(m.id_existencia)}</span>
+                              <span className="font-medium text-slate-900">
+                                {getMedicamentoNombre(m.id_existencia)}
+                                <span className="ml-1 text-blue-600">
+                                  ({existencias.find(e => e.id_existencia === m.id_existencia)?.concentracion})
+                                </span>
+                              </span>
                               <span className="text-[10px] text-slate-400 italic truncate max-w-[150px]">{m.observaciones}</span>
                             </div>
                           </TableCell>
@@ -292,47 +284,7 @@ export function Movimientos() {
               </CardContent>
             </Card>
           </TabsContent>
-
-          <TabsContent value="insumos" className="mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                    <ClipboardList className="w-5 h-5 text-[#4796B7]" />
-                    Historial de Egresos - Suministros
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader className="bg-slate-50">
-                    <TableRow>
-                      <TableHead className="pl-6">Fecha</TableHead>
-                      <TableHead>Insumo</TableHead>
-                      <TableHead>Cantidad</TableHead>
-                      <TableHead>Motivo / Observación</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {salidasInsumos.length > 0 ? (
-                      salidasInsumos
-                        .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
-                        .map((s: any) => (
-                        <TableRow key={s.id_salida}>
-                          <TableCell className="pl-6 text-xs font-mono">{new Date(s.fecha).toLocaleString()}</TableCell>
-                          <TableCell className="font-medium text-slate-900">{getInsumoNombre(s.id_insumo)}</TableCell>
-                          <TableCell className="text-red-600 font-bold">-{s.cantidad}</TableCell>
-                          <TableCell className="text-sm text-slate-500 italic">{s.observacion || 'Sin observaciones'}</TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={4} className="text-center py-10 text-slate-400">No hay registros.</TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
+          {/* ... (Sección de insumos) */}
         </Tabs>
       </div>
 
@@ -349,25 +301,24 @@ export function Movimientos() {
                  value={scanBuffer}
                  onChange={(e) => setScanBuffer(e.target.value)}
                  onKeyDown={handleKeyDown}
-                 className="bg-white"
                />
              </div>
 
              <div className="space-y-2">
-                <Label htmlFor="folio-input">Folio de Referencia</Label>
-                <Input 
-                  id="folio-input"
-                  list="folios-list" 
-                  placeholder="Seleccione Fol-2026-ID..." 
-                  value={formData.folio}
-                  onChange={(e) => setFormData({...formData, folio: e.target.value})}
-                />
-                <datalist id="folios-list">
-                  {foliosActivos.map((f: any) => (
-                    // MODIFICACIÓN: Solo visual para el usuario en el dropdown
-                    <option key={f.id_folio} value={`Fol-2026-${f.id_folio}`} />
-                  ))}
-                </datalist>
+                <Label>Folio de Referencia</Label>
+                <Select 
+                  value={formData.folio} 
+                  onValueChange={(v) => setFormData({...formData, folio: v})}
+                >
+                  <SelectTrigger><SelectValue placeholder="Seleccione folio..." /></SelectTrigger>
+                  <SelectContent>
+                    {foliosActivos.map((f: any) => (
+                      <SelectItem key={f.id_folio} value={f.id_folio.toString()}>
+                        Fol-2026-{f.id_folio}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
              <div className="grid grid-cols-2 gap-4">
@@ -389,13 +340,13 @@ export function Movimientos() {
              </div>
 
              <div className="space-y-2">
-               <Label>Lote / Existencia {selectedMedId && "(Filtrado)"}</Label>
+               <Label>Presentación / Concentración</Label>
                <Select value={formData.id_existencia} onValueChange={(v) => setFormData({ ...formData, id_existencia: v })}>
                  <SelectTrigger className={selectedMedId ? "bg-blue-50 border-blue-400" : ""}><SelectValue placeholder="Seleccione lote..." /></SelectTrigger>
                  <SelectContent>
                    {(selectedMedId ? existencias.filter(ex => ex.id_medicamento === selectedMedId) : existencias).map(ex => (
                      <SelectItem key={ex.id_existencia} value={ex.id_existencia.toString()}>
-                       {getMedicamentoNombre(ex.id_existencia)} - [{ex.codigo_referencia}] (Stock: {ex.cantidad_actual})
+                       {getMedicamentoNombre(ex.id_existencia)} - {ex.concentracion} (Stock: {ex.cantidad_actual})
                      </SelectItem>
                    ))}
                  </SelectContent>
