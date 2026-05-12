@@ -63,6 +63,16 @@ export interface Insumo {
   nombre_insumo: string;
   tipo_insumo: string;
   cantidad_actual: number;
+  folio?: number;
+}
+
+export interface EntradaInsumo {
+  id_entrada: number;
+  id_insumo: number;
+  cantidad: number;
+  folio: number; 
+  fecha: string;
+  observaciones?: string;
 }
 
 export interface SalidaInsumo {
@@ -71,6 +81,7 @@ export interface SalidaInsumo {
   cantidad: number;
   fecha: string;
   observacion?: string;
+  folio: number;
 }
 
 // Tipos para Equipo Médico

@@ -25,7 +25,7 @@ export const storage = {
     const response = await fetch(`${API_URL}/medicamentos`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(medicamento), // Aquí ya no va concentración según tu nueva interfaz
+      body: JSON.stringify(medicamento),
     });
     return await response.json();
   },
@@ -50,7 +50,6 @@ export const storage = {
     const response = await fetch(`${API_URL}/existencias`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      // Ahora enviamos 'concentracion' en lugar de 'codigo_referencia'
       body: JSON.stringify(existencia),
     });
     return await response.json();
@@ -88,19 +87,21 @@ export const storage = {
     return await response.json();
   },
 
-  // --- INSUMOS ---
+  // --- INSUMOS (CON FOLIOS) ---
   async getInsumos(): Promise<Insumo[]> {
     const response = await fetch(`${API_URL}/insumos`);
     const data = await response.json();
     return Array.isArray(data) ? data : [];
   },
 
-  async saveInsumo(insumo: Omit<Insumo, 'id_insumo'>): Promise<Insumo> {
-    const response = await fetch(`${API_URL}/insumos`, {
+  // REGISTRAR ENTRADA / DONACIÓN
+  async registrarEntradaDonacion(nombre_insumo: string, cantidad: number, folio: number, observaciones: string): Promise<any> {
+    const response = await fetch(`${API_URL}/insumos/entrada`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(insumo),
+      body: JSON.stringify({ nombre_insumo, cantidad, folio, observaciones }),
     });
+    if (!response.ok) throw new Error('Error al registrar donación');
     return await response.json();
   },
 
@@ -120,11 +121,11 @@ export const storage = {
     return response.ok;
   },
 
-  async registrarSalidaInsumo(id_insumo: number, cantidad: number, observacion?: string): Promise<boolean> {
+  async registrarSalidaInsumo(id_insumo: number, cantidad: number, observacion?: string, folio?: string): Promise<boolean> {
     const response = await fetch(`${API_URL}/insumos/salida`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id_insumo, cantidad, observacion }),
+      body: JSON.stringify({ id_insumo, cantidad, observacion, folio }),
     });
     return response.ok;
   },
@@ -175,10 +176,17 @@ export const storage = {
     return Array.isArray(data) ? data : [];
   },
 
-  // --- UTILIDADES E INVENTARIO ---
+  // --- UTILIDADES ---
   async getUsuarios(): Promise<Usuario[]> {
     const response = await fetch(`${API_URL}/usuarios`);
     return await response.json();
+  },
+
+  async getCurrentUser(): Promise<Usuario> {
+    const response = await fetch(`${API_URL}/usuarios`);
+    const usuarios = await response.json();
+    // Retornamos el usuario con ID 1 o el primero disponible
+    return usuarios.find((u: any) => u.id_usuario === 1) || usuarios[0] || { id_usuario: 1, nombre_usuario: 'Admin' };
   },
 
   async getInventarioCompleto() {
@@ -199,44 +207,6 @@ export const storage = {
     });
   },
 
-  async getReporteConsumo(): Promise<ReporteConsumo[]> {
-    const [movimientos, existencias, medicamentos] = await Promise.all([
-      this.getMovimientos(),
-      this.getExistencias(),
-      this.getMedicamentos()
-    ]);
-
-    const salidas = movimientos.filter(m => m.tipo_movimiento === 'salida');
-    const conteo = new Map<number, { cant: number; movs: number }>();
-
-    salidas.forEach(mov => {
-      const ex = existencias.find(e => e.id_existencia === mov.id_existencia);
-      if (ex) {
-        const actual = conteo.get(ex.id_medicamento) || { cant: 0, movs: 0 };
-        conteo.set(ex.id_medicamento, {
-          cant: actual.cant + mov.cantidad,
-          movs: actual.movs + 1
-        });
-      }
-    });
-
-    return Array.from(conteo.entries()).map(([id, data]) => {
-      const med = medicamentos.find(m => m.id_medicamento === id);
-      return {
-        nombre_medicamento: med?.nombre || 'Desconocido',
-        tipo_medicamento: med?.tipo_medicamento || 'N/A',
-        cantidad_total: data.cant,
-        num_movimientos: data.movs
-      };
-    }).sort((a, b) => b.cantidad_total - a.cantidad_total);
-  },
-
-  async getCurrentUser(): Promise<Usuario> {
-    const response = await fetch(`${API_URL}/usuarios`);
-    const usuarios = await response.json();
-    return usuarios.find((u: any) => u.id_usuario === 1) || usuarios[0] || { id_usuario: 1, nombre_usuario: 'Admin' };
-  },
-
   async getAlertas(): Promise<Alerta[]> {
     const inventario = await this.getInventarioCompleto();
     return inventario
@@ -247,7 +217,6 @@ export const storage = {
         cantidad_total: item.cantidad_total,
         stock_minimo: item.medicamento.stock_minimo,
         tipo_medicamento: item.medicamento.tipo_medicamento,
-        sm: item.medicamento.stock_minimo,
         ubicacion: item.medicamento.ubicacion,
         estante: item.medicamento.estante,
         sede: item.medicamento.sede
