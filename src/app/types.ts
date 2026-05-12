@@ -63,8 +63,9 @@ export interface ReporteConsumo {
 export interface Insumo {
   id_insumo: number;
   nombre_insumo: string;
-  tipo_insumo: string;
+  tipo_insumo: string; // Esta es la columna real de tu DB
   cantidad_actual: number;
+  observaciones?: string; // Para el desglose de cajas
   folio?: number;
 }
 
