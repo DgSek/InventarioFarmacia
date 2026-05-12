@@ -307,6 +307,25 @@ app.get('/api/usuarios', async (req, res) => {
   }
 });
 
+// ==========================================
+// --- USUARIO ACTIVO (PARA SIDEBAR) ---
+// ==========================================
+
+app.get('/api/usuario-activo', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT nombre_usuario FROM Usuarios WHERE id_usuario = $1', [1]);
+    
+    if (result.rows.length > 0) {
+      res.json(result.rows[0]);
+    } else {
+      res.status(404).json({ error: 'No hay usuario activo' });
+    }
+  } catch (err) {
+    console.error('Error al obtener usuario activo:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(5000, () => {
   console.log('✅ Servidor sincronizado y escuchando en puerto 5000');
 });
