@@ -148,7 +148,18 @@ app.post('/api/movimientos', async (req, res) => {
 
 app.get('/api/insumos', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM Insumos ORDER BY nombre_insumo ASC');
+    // Esta consulta busca el insumo y adjunta la información de la última entrada 
+    // para extraer el desglose de cajas (parseando el campo observaciones)
+    const result = await pool.query(`
+      SELECT 
+        i.*,
+        (SELECT observaciones 
+         FROM entradas_insumos 
+         WHERE id_insumo = i.id_insumo 
+         ORDER BY id_entrada DESC LIMIT 1) as ultima_observacion
+      FROM Insumos i 
+      ORDER BY i.nombre_insumo ASC
+    `);
     res.json(result.rows || []);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -156,7 +167,8 @@ app.get('/api/insumos', async (req, res) => {
 });
 
 app.post('/api/insumos/entrada', async (req, res) => {
-  const { nombre_insumo, cantidad, folio, observaciones } = req.body;
+  // 1. Recibimos tipo_insumo del cuerpo de la petición
+  const { nombre_insumo, cantidad, folio, observaciones, tipo_insumo } = req.body;
   const folioID = parseInt(folio);
 
   try {
@@ -166,14 +178,19 @@ app.post('/api/insumos/entrada', async (req, res) => {
     let id_insumo;
 
     if (insumoRes.rows.length === 0) {
+      // 2. Si es nuevo, insertamos también la categoría (tipo_insumo)
       const nuevo = await pool.query(
-        'INSERT INTO Insumos (nombre_insumo, cantidad_actual) VALUES ($1, $2) RETURNING id_insumo',
-        [nombre_insumo, cantidad]
+        'INSERT INTO Insumos (nombre_insumo, cantidad_actual, tipo_insumo) VALUES ($1, $2, $3) RETURNING id_insumo',
+        [nombre_insumo, cantidad, tipo_insumo]
       );
       id_insumo = nuevo.rows[0].id_insumo;
     } else {
       id_insumo = insumoRes.rows[0].id_insumo;
-      await pool.query('UPDATE Insumos SET cantidad_actual = cantidad_actual + $1 WHERE id_insumo = $2', [cantidad, id_insumo]);
+      // 3. Si ya existe, actualizamos cantidad y también aseguramos la categoría
+      await pool.query(
+        'UPDATE Insumos SET cantidad_actual = cantidad_actual + $1, tipo_insumo = $2 WHERE id_insumo = $3', 
+        [cantidad, tipo_insumo, id_insumo]
+      );
     }
 
     const entrada = await pool.query(
@@ -219,11 +236,28 @@ app.get('/api/insumos/salidas', async (req, res) => {
 });
 
 app.delete('/api/insumos/:id', async (req, res) => {
+  const { id } = req.params;
   try {
-    await pool.query('DELETE FROM Insumos WHERE id_insumo = $1', [req.params.id]);
-    res.json({ success: true });
+    await pool.query('BEGIN');
+
+    // 1. Borramos primero el historial en las tablas hijas para evitar el error de integridad
+    await pool.query('DELETE FROM entradas_insumos WHERE id_insumo = $1', [id]);
+    await pool.query('DELETE FROM Salidas_Insumos WHERE id_insumo = $1', [id]);
+
+    // 2. Ahora sí borramos el insumo principal
+    const result = await pool.query('DELETE FROM Insumos WHERE id_insumo = $1', [id]);
+
+    await pool.query('COMMIT');
+    
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Insumo no encontrado" });
+    }
+
+    res.json({ success: true, message: "Insumo e historial eliminados" });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    await pool.query('ROLLBACK');
+    console.error('Error al eliminar insumo:', err.message);
+    res.status(500).json({ error: "No se pudo eliminar el insumo. Detalles: " + err.message });
   }
 });
 

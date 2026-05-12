@@ -94,15 +94,29 @@ export const storage = {
     return Array.isArray(data) ? data : [];
   },
 
-  async registrarEntradaDonacion(nombre_insumo: string, cantidad: number, folio: number, observaciones: string): Promise<any> {
-    const response = await fetch(`${API_URL}/insumos/entrada`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nombre_insumo, cantidad, folio, observaciones }),
-    });
-    if (!response.ok) throw new Error('Error al registrar donación');
-    return await response.json();
-  },
+  async registrarEntradaDonacion(
+  nombre_insumo: string, 
+  cantidad: number, 
+  folio: number, 
+  observaciones: string,
+  tipo_insumo: string // <--- 1. Agregamos el parámetro aquí
+): Promise<any> {
+  const response = await fetch(`${API_URL}/insumos/entrada`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    // 2. Lo agregamos al cuerpo del JSON que se envía al servidor
+    body: JSON.stringify({ 
+      nombre_insumo, 
+      cantidad, 
+      folio, 
+      observaciones, 
+      tipo_insumo 
+    }),
+  });
+
+  if (!response.ok) throw new Error('Error al registrar donación');
+  return await response.json();
+},
 
   async updateInsumo(insumo: Insumo): Promise<Insumo> {
     const response = await fetch(`${API_URL}/insumos/${insumo.id_insumo}`, {
