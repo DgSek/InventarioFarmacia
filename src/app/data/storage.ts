@@ -25,7 +25,7 @@ export const storage = {
     const response = await fetch(`${API_URL}/medicamentos`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(medicamento),
+      body: JSON.stringify(medicamento), // Ya no envía sede (eliminada del tipo Medicamento)
     });
     return await response.json();
   },
@@ -50,7 +50,7 @@ export const storage = {
     const response = await fetch(`${API_URL}/existencias`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(existencia),
+      body: JSON.stringify(existencia), // Ahora incluye 'sede' según la nueva interfaz
     });
     return await response.json();
   },
@@ -94,7 +94,6 @@ export const storage = {
     return Array.isArray(data) ? data : [];
   },
 
-  // REGISTRAR ENTRADA / DONACIÓN
   async registrarEntradaDonacion(nombre_insumo: string, cantidad: number, folio: number, observaciones: string): Promise<any> {
     const response = await fetch(`${API_URL}/insumos/entrada`, {
       method: 'POST',
@@ -185,7 +184,6 @@ export const storage = {
   async getCurrentUser(): Promise<Usuario> {
     const response = await fetch(`${API_URL}/usuarios`);
     const usuarios = await response.json();
-    // Retornamos el usuario con ID 1 o el primero disponible
     return usuarios.find((u: any) => u.id_usuario === 1) || usuarios[0] || { id_usuario: 1, nombre_usuario: 'Admin' };
   },
 
@@ -209,6 +207,8 @@ export const storage = {
 
   async getAlertas(): Promise<Alerta[]> {
     const inventario = await this.getInventarioCompleto();
+    
+    // Ahora las alertas muestran la sede de donde proviene la existencia
     return inventario
       .filter(item => item.cantidad_total <= item.medicamento.stock_minimo)
       .map(item => ({
@@ -219,7 +219,47 @@ export const storage = {
         tipo_medicamento: item.medicamento.tipo_medicamento,
         ubicacion: item.medicamento.ubicacion,
         estante: item.medicamento.estante,
-        sede: item.medicamento.sede
+        // Tomamos la sede de la primera existencia disponible como referencia para la alerta
+        sede: item.existencias[0]?.sede || 'Sin Sede Asignada'
       }));
+  },
+  async getReporteConsumo(): Promise<ReporteConsumo[]> {
+    const [medicamentos, movimientos, existencias] = await Promise.all([
+      this.getMedicamentos(),
+      this.getMovimientos(),
+      this.getExistencias()
+    ]);
+
+    const salidas = movimientos.filter(m => m.tipo_movimiento === 'salida');
+    const consumoMap = new Map<number, { cantidad: number, movimientos: number, sede: string }>();
+
+    salidas.forEach(m => {
+      const ex = existencias.find(e => e.id_existencia === m.id_existencia);
+      if (ex) {
+        const actual = consumoMap.get(ex.id_medicamento) || { 
+          cantidad: 0, 
+          movimientos: 0, 
+          sede: ex.sede // Guardamos la sede de la existencia
+        };
+        consumoMap.set(ex.id_medicamento, {
+          cantidad: actual.cantidad + m.cantidad,
+          movimientos: actual.movimientos + 1,
+          sede: actual.sede
+        });
+      }
+    });
+
+    const reporte: ReporteConsumo[] = Array.from(consumoMap.entries()).map(([id, stats]) => {
+      const med = medicamentos.find(m => m.id_medicamento === id);
+      return {
+        nombre_medicamento: med?.nombre || 'Desconocido',
+        tipo_medicamento: med?.tipo_medicamento || 'N/A',
+        cantidad_total: stats.cantidad,
+        num_movimientos: stats.movimientos,
+        sede: stats.sede // <--- Esto es lo que faltaba para cumplir con la interfaz
+      };
+    });
+
+    return reporte.sort((a, b) => b.cantidad_total - a.cantidad_total);
   }
 };

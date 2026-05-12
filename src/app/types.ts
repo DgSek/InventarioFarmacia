@@ -9,7 +9,6 @@ export interface Medicamento {
   activo: boolean;
   ubicacion: string;
   estante?: string;
-  sede: string;
   folio?: string;
 }
 
@@ -19,6 +18,7 @@ export interface Existencia {
   concentracion: string;
   cantidad_actual: number;
   fecha_registro: string;
+  sede: string;
 }
 
 export type TipoMovimiento = 'entrada' | 'salida' | 'caducado';
@@ -32,6 +32,7 @@ export interface Movimiento {
   id_usuario: number;
   observaciones?: string;
   folio?: string;
+  sede: string;
 }
 
 export interface Usuario {
@@ -55,6 +56,7 @@ export interface ReporteConsumo {
   tipo_medicamento: string;
   cantidad_total: number;
   num_movimientos: number;
+  sede: string;
 }
 
 // Tipos para Insumos

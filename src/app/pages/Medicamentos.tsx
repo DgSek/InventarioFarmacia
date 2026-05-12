@@ -2,11 +2,10 @@ import { useState } from 'react';
 import { storage } from '../data/storage';
 import { Medicamento } from '../types';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Badge } from '../components/ui/badge';
 import {
   Dialog,
   DialogContent,
@@ -22,7 +21,7 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
-import { Plus, Edit, Pill, Loader2, LayoutGrid, Beaker, Barcode, Search, Trash2, AlertTriangle, Building2 } from 'lucide-react';
+import { Plus, Edit, Loader2, Barcode, Search, Trash2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function Medicamentos() {
@@ -33,7 +32,7 @@ export function Medicamentos() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterTipo, setFilterTipo] = useState<string>('todos');
 
-  // Estado inicial limpio (sin concentración)
+  // Estado inicial limpio (sin sede, ya que ahora es por existencia)
   const [formData, setFormData] = useState({
     nombre: '',
     tipo_medicamento: '',
@@ -42,7 +41,6 @@ export function Medicamentos() {
     ubicacion: '',
     estante: '',
     activo: true,
-    sede: 'Centro Comunitario',
   });
 
   // --- CARGA DE DATOS ---
@@ -105,12 +103,13 @@ export function Medicamentos() {
   const filteredMedicamentos = medicamentos.filter(m => {
     if (!m.activo) return false;
     const term = searchTerm.toLowerCase();
-    return (
+    const matchesSearch = (
       m.nombre.toLowerCase().includes(term) ||
       m.tipo_medicamento.toLowerCase().includes(term) ||
-      (m.codigo_barras && m.codigo_barras.toLowerCase().includes(term)) ||
-      (m.sede && m.sede.toLowerCase().includes(term))
+      (m.codigo_barras && m.codigo_barras.toLowerCase().includes(term))
     );
+    const matchesTipo = filterTipo === 'todos' || m.tipo_medicamento === filterTipo;
+    return matchesSearch && matchesTipo;
   });
 
   const tiposMedicamento = Array.from(new Set(medicamentos.map(m => m.tipo_medicamento)));
@@ -140,14 +139,12 @@ export function Medicamentos() {
         ubicacion: medicamento.ubicacion,
         estante: medicamento.estante || '',
         activo: medicamento.activo,
-        sede: medicamento.sede || 'Centro Comunitario',
       });
     } else {
       setEditingMedicamento(null);
       setFormData({
         nombre: '', tipo_medicamento: '', codigo_barras: '',
-        stock_minimo: '0', ubicacion: '', estante: '', activo: true,
-        sede: 'Centro Comunitario'
+        stock_minimo: '0', ubicacion: '', estante: '', activo: true
       });
     }
     setIsDialogOpen(true);
@@ -183,7 +180,7 @@ export function Medicamentos() {
                 <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
                 <Input
                   className="pl-10 bg-white"
-                  placeholder="Nombre, código o sede..."
+                  placeholder="Nombre o código de barras..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -212,8 +209,7 @@ export function Medicamentos() {
               <TableRow className="hover:bg-[#4796B7]/10 border-b transition-colors">
                 <TableHead className="w-[140px] pl-6">Código</TableHead>
                 <TableHead>Medicamento</TableHead>
-                <TableHead>Sede</TableHead>
-                <TableHead>Stock Total</TableHead>
+                <TableHead>Stock Total (Global)</TableHead>
                 <TableHead className="text-right pr-6">Acciones</TableHead>
               </TableRow>
             </TableHeader>
@@ -233,11 +229,6 @@ export function Medicamentos() {
                         <span className="font-bold text-slate-900">{med.nombre}</span>
                         <span className="text-[10px] text-slate-400 uppercase">{med.tipo_medicamento}</span>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="bg-slate-50 gap-1 border-slate-200 text-slate-600 py-1">
-                        <Building2 className="w-3 h-3" /> {med.sede}
-                      </Badge>
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col">
@@ -295,36 +286,16 @@ export function Medicamentos() {
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 pt-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2">
-                <Label className="text-slate-700 font-bold flex items-center gap-2">
-                  <Barcode className="w-4 h-4" /> Código
-                </Label>
-                <Input
-                  className="bg-white"
-                  value={formData.codigo_barras}
-                  onChange={(e) => setFormData({ ...formData, codigo_barras: e.target.value })}
-                />
-              </div>
-
-              <div className="bg-blue-50/50 p-3 rounded-lg border border-blue-100 space-y-2">
-                <Label className="text-blue-900 font-bold flex items-center gap-2">
-                  <Building2 className="w-4 h-4" /> Sede
-                </Label>
-                <Select
-                  value={formData.sede}
-                  onValueChange={(val) => setFormData({ ...formData, sede: val })}
-                >
-                  <SelectTrigger className="bg-white border-blue-200 text-blue-900 font-medium">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Centro Comunitario">Centro Comunitario</SelectItem>
-                    <SelectItem value="Nueva Esperanza">Nueva Esperanza</SelectItem>
-                    <SelectItem value="Sonoyta">Sonoyta</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2">
+              <Label className="text-slate-700 font-bold flex items-center gap-2">
+                <Barcode className="w-4 h-4" /> Código de Barras
+              </Label>
+              <Input
+                className="bg-white"
+                value={formData.codigo_barras}
+                onChange={(e) => setFormData({ ...formData, codigo_barras: e.target.value })}
+                required
+              />
             </div>
 
             <div className="space-y-2">
@@ -349,7 +320,7 @@ export function Medicamentos() {
             </div>
 
             <div className="space-y-2">
-              <Label className="font-semibold text-red-600">Alerta de Stock Mínimo</Label>
+              <Label className="font-semibold text-red-600">Alerta de Stock Mínimo (Global)</Label>
               <Input type="number" value={formData.stock_minimo} onChange={(e) => setFormData({ ...formData, stock_minimo: e.target.value })} required />
             </div>
 

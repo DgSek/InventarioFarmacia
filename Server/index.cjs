@@ -36,13 +36,14 @@ app.get('/api/medicamentos', async (req, res) => {
 });
 
 app.post('/api/medicamentos', async (req, res) => {
-  const { nombre, tipo_medicamento, stock_minimo, ubicacion, estante, codigo_barras, activo, sede } = req.body;
+  // MODIFICADO: Se eliminó 'sede' de aquí
+  const { nombre, tipo_medicamento, stock_minimo, ubicacion, estante, codigo_barras, activo } = req.body;
   try {
     const result = await pool.query(
       `INSERT INTO Medicamentos 
-      (nombre, tipo_medicamento, stock_minimo, ubicacion, estante, codigo_barras, activo, sede) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [nombre, tipo_medicamento, stock_minimo, ubicacion, estante, codigo_barras, activo, sede]
+      (nombre, tipo_medicamento, stock_minimo, ubicacion, estante, codigo_barras, activo) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [nombre, tipo_medicamento, stock_minimo, ubicacion, estante, codigo_barras, activo]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -52,13 +53,14 @@ app.post('/api/medicamentos', async (req, res) => {
 
 app.put('/api/medicamentos/:id', async (req, res) => {
   const { id } = req.params;
-  const { nombre, tipo_medicamento, stock_minimo, ubicacion, estante, codigo_barras, activo, sede } = req.body;
+  // MODIFICADO: Se eliminó 'sede' de aquí
+  const { nombre, tipo_medicamento, stock_minimo, ubicacion, estante, codigo_barras, activo } = req.body;
   try {
     const result = await pool.query(
       `UPDATE Medicamentos SET 
-      nombre=$1, tipo_medicamento=$2, stock_minimo=$3, ubicacion=$4, estante=$5, codigo_barras=$6, activo=$7, sede=$8
-      WHERE id_medicamento=$9 RETURNING *`,
-      [nombre, tipo_medicamento, stock_minimo, ubicacion, estante, codigo_barras, activo, sede, id]
+      nombre=$1, tipo_medicamento=$2, stock_minimo=$3, ubicacion=$4, estante=$5, codigo_barras=$6, activo=$7
+      WHERE id_medicamento=$8 RETURNING *`,
+      [nombre, tipo_medicamento, stock_minimo, ubicacion, estante, codigo_barras, activo, id]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -85,17 +87,18 @@ app.get('/api/existencias', async (req, res) => {
 });
 
 app.post('/api/existencias', async (req, res) => {
-  const { id_medicamento, concentracion, cantidad_actual, fecha_registro } = req.body;
+  // MODIFICADO: Ahora recibe 'sede' y la incluye en la lógica de conflicto
+  const { id_medicamento, concentracion, cantidad_actual, fecha_registro, sede } = req.body;
   try {
     const result = await pool.query(
-      `INSERT INTO Existencias (id_medicamento, concentracion, cantidad_actual, fecha_registro) 
-       VALUES ($1, $2, $3, $4) 
-       ON CONFLICT (id_medicamento, concentracion) 
+      `INSERT INTO Existencias (id_medicamento, concentracion, cantidad_actual, fecha_registro, sede) 
+       VALUES ($1, $2, $3, $4, $5) 
+       ON CONFLICT (id_medicamento, concentracion, sede) 
        DO UPDATE SET 
           cantidad_actual = Existencias.cantidad_actual + EXCLUDED.cantidad_actual,
           fecha_registro = CURRENT_TIMESTAMP
        RETURNING *`, 
-      [id_medicamento, concentracion, cantidad_actual, fecha_registro]
+      [id_medicamento, concentracion, cantidad_actual, fecha_registro, sede]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -152,34 +155,27 @@ app.get('/api/insumos', async (req, res) => {
   }
 });
 
-// REGISTRAR ENTRADA (DONACIÓN)
 app.post('/api/insumos/entrada', async (req, res) => {
   const { nombre_insumo, cantidad, folio, observaciones } = req.body;
-  
-  // Limpieza de folio: Aseguramos que sea un número entero
   const folioID = parseInt(folio);
 
   try {
     await pool.query('BEGIN');
 
-    // 1. Buscar si el insumo existe
     let insumoRes = await pool.query('SELECT id_insumo FROM Insumos WHERE nombre_insumo = $1', [nombre_insumo]);
     let id_insumo;
 
     if (insumoRes.rows.length === 0) {
-      // Crear si es nuevo
       const nuevo = await pool.query(
         'INSERT INTO Insumos (nombre_insumo, cantidad_actual) VALUES ($1, $2) RETURNING id_insumo',
         [nombre_insumo, cantidad]
       );
       id_insumo = nuevo.rows[0].id_insumo;
     } else {
-      // Actualizar si ya existe
       id_insumo = insumoRes.rows[0].id_insumo;
       await pool.query('UPDATE Insumos SET cantidad_actual = cantidad_actual + $1 WHERE id_insumo = $2', [cantidad, id_insumo]);
     }
 
-    // 2. Registrar en historial de entradas (Tabla farmacia.entradas_insumos)
     const entrada = await pool.query(
       'INSERT INTO entradas_insumos (id_insumo, cantidad, folio, observaciones) VALUES ($1, $2, $3, $4) RETURNING *',
       [id_insumo, cantidad, folioID, observaciones]
@@ -194,7 +190,6 @@ app.post('/api/insumos/entrada', async (req, res) => {
   }
 });
 
-// REGISTRAR SALIDA DE INSUMO
 app.post('/api/insumos/salida', async (req, res) => {
   const { id_insumo, cantidad, observacion, folio } = req.body;
   const folioID = parseInt(folio);
@@ -287,13 +282,11 @@ app.delete('/api/equipo-medico/:id', async (req, res) => {
 
 app.get('/api/folios-activos', async (req, res) => {
   try {
-    // Consulta optimizada para el esquema de donaciones con tus campos reales
     const folios = await pool.query(`
       SELECT * FROM donaciones.folios_maestros 
       WHERE estatus_folio ILIKE 'true' 
       AND area_origen = 'Farmacia'
     `);
-    
     res.json(folios.rows);
   } catch (err) {
     console.error('Error en folios:', err.message);
