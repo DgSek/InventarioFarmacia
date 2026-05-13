@@ -36,7 +36,6 @@ app.get('/api/medicamentos', async (req, res) => {
 });
 
 app.post('/api/medicamentos', async (req, res) => {
-  // MODIFICADO: Se eliminó 'sede' de aquí
   const { nombre, tipo_medicamento, stock_minimo, ubicacion, estante, codigo_barras, activo } = req.body;
   try {
     const result = await pool.query(
@@ -53,7 +52,6 @@ app.post('/api/medicamentos', async (req, res) => {
 
 app.put('/api/medicamentos/:id', async (req, res) => {
   const { id } = req.params;
-  // MODIFICADO: Se eliminó 'sede' de aquí
   const { nombre, tipo_medicamento, stock_minimo, ubicacion, estante, codigo_barras, activo } = req.body;
   try {
     const result = await pool.query(
@@ -87,7 +85,6 @@ app.get('/api/existencias', async (req, res) => {
 });
 
 app.post('/api/existencias', async (req, res) => {
-  // MODIFICADO: Ahora recibe 'sede' y la incluye en la lógica de conflicto
   const { id_medicamento, concentracion, cantidad_actual, fecha_registro, sede } = req.body;
   try {
     const result = await pool.query(
@@ -148,8 +145,6 @@ app.post('/api/movimientos', async (req, res) => {
 
 app.get('/api/insumos', async (req, res) => {
   try {
-    // Esta consulta busca el insumo y adjunta la información de la última entrada 
-    // para extraer el desglose de cajas (parseando el campo observaciones)
     const result = await pool.query(`
       SELECT 
         i.*,
@@ -167,7 +162,6 @@ app.get('/api/insumos', async (req, res) => {
 });
 
 app.post('/api/insumos/entrada', async (req, res) => {
-  // 1. Recibimos tipo_insumo del cuerpo de la petición
   const { nombre_insumo, cantidad, folio, observaciones, tipo_insumo } = req.body;
   const folioID = parseInt(folio);
 
@@ -178,7 +172,6 @@ app.post('/api/insumos/entrada', async (req, res) => {
     let id_insumo;
 
     if (insumoRes.rows.length === 0) {
-      // 2. Si es nuevo, insertamos también la categoría (tipo_insumo)
       const nuevo = await pool.query(
         'INSERT INTO Insumos (nombre_insumo, cantidad_actual, tipo_insumo) VALUES ($1, $2, $3) RETURNING id_insumo',
         [nombre_insumo, cantidad, tipo_insumo]
@@ -186,7 +179,6 @@ app.post('/api/insumos/entrada', async (req, res) => {
       id_insumo = nuevo.rows[0].id_insumo;
     } else {
       id_insumo = insumoRes.rows[0].id_insumo;
-      // 3. Si ya existe, actualizamos cantidad y también aseguramos la categoría
       await pool.query(
         'UPDATE Insumos SET cantidad_actual = cantidad_actual + $1, tipo_insumo = $2 WHERE id_insumo = $3', 
         [cantidad, tipo_insumo, id_insumo]
@@ -202,26 +194,49 @@ app.post('/api/insumos/entrada', async (req, res) => {
     res.json(entrada.rows[0]);
   } catch (err) {
     await pool.query('ROLLBACK');
-    console.error('Error en entrada insumo:', err.message);
+    console.error('❌ Error en entrada insumo:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
+// CORREGIDO: Endpoint de salida de insumos para que reste stock correctamente
 app.post('/api/insumos/salida', async (req, res) => {
   const { id_insumo, cantidad, observacion, folio } = req.body;
+  
+  // Convertimos a números para evitar errores de tipo en la DB
+  const insumoID = parseInt(id_insumo);
+  const cantNum = parseInt(cantidad);
   const folioID = parseInt(folio);
 
   try {
     await pool.query('BEGIN');
-    await pool.query(
-      'INSERT INTO Salidas_Insumos (id_insumo, cantidad, observacion, folio) VALUES ($1, $2, $3, $4)',
-      [id_insumo, cantidad, observacion, folioID]
+    
+    // 1. Insertamos el registro de salida
+    const insertSalida = await pool.query(
+      'INSERT INTO Salidas_Insumos (id_insumo, cantidad, observacion, folio) VALUES ($1, $2, $3, $4) RETURNING *',
+      [insumoID, cantNum, observacion, folioID]
     );
-    await pool.query('UPDATE Insumos SET cantidad_actual = cantidad_actual - $1 WHERE id_insumo = $2', [cantidad, id_insumo]);
+
+    // 2. Restamos de la tabla Insumos
+    const updateStock = await pool.query(
+      'UPDATE Insumos SET cantidad_actual = cantidad_actual - $1 WHERE id_insumo = $2 RETURNING cantidad_actual',
+      [cantNum, insumoID]
+    );
+
+    if (updateStock.rowCount === 0) {
+        throw new Error("El insumo no existe para actualizar stock.");
+    }
+
     await pool.query('COMMIT');
-    res.json({ message: "Salida registrada" });
+    res.json({ 
+        success: true, 
+        message: "Salida registrada", 
+        data: insertSalida.rows[0],
+        nuevo_stock: updateStock.rows[0].cantidad_actual 
+    });
   } catch (err) {
     await pool.query('ROLLBACK');
+    console.error('❌ Error en salida insumo:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -239,25 +254,16 @@ app.delete('/api/insumos/:id', async (req, res) => {
   const { id } = req.params;
   try {
     await pool.query('BEGIN');
-
-    // 1. Borramos primero el historial en las tablas hijas para evitar el error de integridad
     await pool.query('DELETE FROM entradas_insumos WHERE id_insumo = $1', [id]);
     await pool.query('DELETE FROM Salidas_Insumos WHERE id_insumo = $1', [id]);
-
-    // 2. Ahora sí borramos el insumo principal
     const result = await pool.query('DELETE FROM Insumos WHERE id_insumo = $1', [id]);
-
     await pool.query('COMMIT');
     
-    if (result.rowCount === 0) {
-      return res.status(404).json({ error: "Insumo no encontrado" });
-    }
-
+    if (result.rowCount === 0) return res.status(404).json({ error: "Insumo no encontrado" });
     res.json({ success: true, message: "Insumo e historial eliminados" });
   } catch (err) {
     await pool.query('ROLLBACK');
-    console.error('Error al eliminar insumo:', err.message);
-    res.status(500).json({ error: "No se pudo eliminar el insumo. Detalles: " + err.message });
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -323,7 +329,6 @@ app.get('/api/folios-activos', async (req, res) => {
     `);
     res.json(folios.rows);
   } catch (err) {
-    console.error('Error en folios:', err.message);
     res.status(500).json({ error: 'Error al consultar folios de Farmacia' });
   }
 });
@@ -341,21 +346,12 @@ app.get('/api/usuarios', async (req, res) => {
   }
 });
 
-// ==========================================
-// --- USUARIO ACTIVO (PARA SIDEBAR) ---
-// ==========================================
-
 app.get('/api/usuario-activo', async (req, res) => {
   try {
     const result = await pool.query('SELECT nombre_usuario FROM Usuarios WHERE id_usuario = $1', [1]);
-    
-    if (result.rows.length > 0) {
-      res.json(result.rows[0]);
-    } else {
-      res.status(404).json({ error: 'No hay usuario activo' });
-    }
+    if (result.rows.length > 0) res.json(result.rows[0]);
+    else res.status(404).json({ error: 'No hay usuario activo' });
   } catch (err) {
-    console.error('Error al obtener usuario activo:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

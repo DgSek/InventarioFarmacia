@@ -22,6 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription, // Importado para corregir advertencia de accesibilidad
 } from '../components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import {
@@ -29,17 +30,14 @@ import {
   Edit,
   Trash2,
   ArrowDownCircle,
-  ArrowUpCircle,
   Box,
   Stethoscope,
   Loader2,
-  ClipboardList,
-  Tags,
-  Package
+  Package,
+  AlertCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-// Categorías para el Select
 const CATEGORIAS_INSUMOS = [
   "Material de curación",
   "Equipo médico menor",
@@ -53,7 +51,6 @@ export function Insumos() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('insumos');
 
-  // Estados de Diálogos
   const [isInsumoDialogOpen, setIsInsumoDialogOpen] = useState(false);
   const [isSalidaDialogOpen, setIsSalidaDialogOpen] = useState(false);
   const [isEquipoDialogOpen, setIsEquipoDialogOpen] = useState(false);
@@ -66,7 +63,7 @@ export function Insumos() {
     cantidad_unidades: '', 
     cantidad_cajas: '',    
     unidades_por_caja: '', 
-    folio: '',
+    folio: '', // Cambiado para coincidir con tu lógica de DB
     observaciones: ''
   });
 
@@ -74,7 +71,7 @@ export function Insumos() {
     id_insumo: '',
     cantidad: '',
     observacion: '',
-    folio: ''
+    folio: '' // Cambiado de id_folio a folio para consistencia
   });
 
   const [equipoFormData, setEquipoFormData] = useState({
@@ -106,8 +103,6 @@ export function Insumos() {
       const uPorCaja = parseInt(data.unidades_por_caja || '0');
       const sueltas = parseInt(data.cantidad_unidades || '0');
       const total = (cajas * uPorCaja) + sueltas;
-
-      // Guardamos el desglose como metadato en el campo de texto de observaciones
       const desgloseStr = cajas > 0 ? `[DESGLOSE:${cajas}|${uPorCaja}|${sueltas}]` : '';
 
       return storage.registrarEntradaDonacion(
@@ -115,13 +110,13 @@ export function Insumos() {
         total,
         parseInt(data.folio),
         `${desgloseStr} ${data.observaciones}`,
-        data.tipo_insumo // Columna tipo_insumo de tu DB
+        data.tipo_insumo
       );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['insumos'] });
       toast.success('Donación registrada correctamente');
-      closeInsumoDialog();
+      setIsInsumoDialogOpen(false);
     },
     onError: () => toast.error('Error al registrar la donación')
   });
@@ -131,12 +126,17 @@ export function Insumos() {
       parseInt(data.id_insumo),
       parseInt(data.cantidad),
       data.observacion,
-      data.folio
+      data.folio // Enviando como folio
     ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['insumos'] });
-      toast.success('Salida registrada correctamente');
-      closeSalidaDialog();
+      queryClient.invalidateQueries({ queryKey: ['salidas-insumos'] });
+      toast.success('Salida registrada y stock actualizado');
+      setIsSalidaDialogOpen(false);
+    },
+    onError: (error) => {
+        console.error(error);
+        toast.error('Error al registrar la salida. Verifique el stock.');
     }
   });
 
@@ -145,64 +145,30 @@ export function Insumos() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['equipo-medico'] });
       toast.success('Equipo actualizado');
-      closeEquipoDialog();
+      setIsEquipoDialogOpen(false);
+      setEditingEquipo(null);
     }
   });
 
-  // --- RENDER HELPERS ---
-  // 1. Modifica la función de renderizado
-const renderStockConDesglose = (insumo: any) => {
-  // Buscamos el patrón [DESGLOSE:cajas|unidades|sueltas] en la última observación recibida
-  const obs = insumo.ultima_observacion || '';
-  const match = obs.match(/\[DESGLOSE:(\d+)\|(\d+)\|(\d+)\]/);
+  const renderStockConDesglose = (insumo: any) => {
+    const obs = insumo.ultima_observacion || '';
+    const match = obs.match(/\[DESGLOSE:(\d+)\|(\d+)\|(\d+)\]/);
 
-  if (match) {
-    const [_, cajas, uPorCaja, sueltas] = match;
-    
-    // Si hay 0 cajas, solo mostramos el número
-    if (parseInt(cajas) === 0) return <span className="font-black text-blue-600 text-lg">{insumo.cantidad_actual}</span>;
+    if (match) {
+      const [_, cajas, uPorCaja, sueltas] = match;
+      if (parseInt(cajas) === 0) return <span className="font-black text-blue-600 text-lg">{insumo.cantidad_actual}</span>;
 
-    return (
-      <div className="flex flex-col">
-        <span className="font-black text-blue-600 text-lg">{insumo.cantidad_actual}</span>
-        <span className="text-[11px] text-slate-500 font-medium leading-tight">
-          ({cajas} {parseInt(cajas) === 1 ? 'caja' : 'cajas'} de {uPorCaja} y {sueltas} sueltas)
-        </span>
-      </div>
-    );
-  }
-
-  // Si no hay datos de cajas, solo muestra el stock actual normal
-  return <span className="font-black text-blue-600 text-lg">{insumo.cantidad_actual}</span>;
-};
-
-// 2. Asegúrate de que en el cuerpo de la tabla se use así:
-// <TableCell>{renderStockConDesglose(i)}</TableCell>
-
-  // --- HANDLERS ---
-  const openInsumoDialog = () => {
-    setInsumoFormData({ nombre_insumo: '', tipo_insumo: '', cantidad_unidades: '', cantidad_cajas: '', unidades_por_caja: '', folio: '', observaciones: '' });
-    setIsInsumoDialogOpen(true);
-  };
-  const closeInsumoDialog = () => setIsInsumoDialogOpen(false);
-  
-  const openSalidaDialog = () => {
-    setSalidaFormData({ id_insumo: '', cantidad: '', observacion: '', folio: '' });
-    setIsSalidaDialogOpen(true);
-  };
-  const closeSalidaDialog = () => setIsSalidaDialogOpen(false);
-
-  const openEquipoDialog = (equipo?: EquipoMedico) => {
-    if (equipo) {
-      setEditingEquipo(equipo);
-      setEquipoFormData({ nombre_equipo: equipo.nombre_equipo, descripcion: equipo.descripcion, estado: equipo.estado });
-    } else {
-      setEditingEquipo(null);
-      setEquipoFormData({ nombre_equipo: '', descripcion: '', estado: 'Disponible' });
+      return (
+        <div className="flex flex-col">
+          <span className="font-black text-blue-600 text-lg">{insumo.cantidad_actual}</span>
+          <span className="text-[11px] text-slate-500 font-medium leading-tight">
+            ({cajas} {parseInt(cajas) === 1 ? 'caja' : 'cajas'} de {uPorCaja} y {sueltas} sueltas)
+          </span>
+        </div>
+      );
     }
-    setIsEquipoDialogOpen(true);
+    return <span className="font-black text-blue-600 text-lg">{insumo.cantidad_actual}</span>;
   };
-  const closeEquipoDialog = () => { setIsEquipoDialogOpen(false); setEditingEquipo(null); };
 
   if (loadingIns) return <div className="flex justify-center p-20"><Loader2 className="animate-spin w-10 h-10 text-blue-600" /></div>;
 
@@ -221,10 +187,10 @@ const renderStockConDesglose = (insumo: any) => {
 
         <TabsContent value="insumos" className="space-y-6 pt-4">
           <div className="flex gap-3">
-            <Button onClick={openInsumoDialog} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+            <Button onClick={() => setIsInsumoDialogOpen(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white">
               <Plus className="w-4 h-4 mr-2" /> Nueva Donación
             </Button>
-            <Button onClick={openSalidaDialog} variant="outline" className="border-red-200 text-red-600 hover:bg-red-50">
+            <Button onClick={() => setIsSalidaDialogOpen(true)} variant="outline" className="border-red-200 text-red-600 hover:bg-red-50">
               <ArrowDownCircle className="w-4 h-4 mr-2" /> Registrar Salida
             </Button>
           </div>
@@ -242,10 +208,10 @@ const renderStockConDesglose = (insumo: any) => {
                 </TableHeader>
                 <TableBody>
                   {insumos.map((i) => (
-                    <TableRow key={i.id_insumo} className="group">
+                    <TableRow key={i.id_insumo}>
                       <TableCell className="font-bold text-slate-700 pl-6">{i.nombre_insumo}</TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="font-normal bg-slate-50 text-slate-600 border-slate-200">
+                        <Badge variant="outline" className="font-normal bg-slate-50 text-slate-600">
                           {i.tipo_insumo || 'Sin categoría'}
                         </Badge>
                       </TableCell>
@@ -264,7 +230,7 @@ const renderStockConDesglose = (insumo: any) => {
         </TabsContent>
 
         <TabsContent value="equipo" className="space-y-6 pt-4">
-          <Button onClick={() => openEquipoDialog()} className="bg-[#4796B7] hover:bg-[#3a7da0] text-white">
+          <Button onClick={() => { setEditingEquipo(null); setEquipoFormData({nombre_equipo: '', descripcion: '', estado: 'Disponible'}); setIsEquipoDialogOpen(true); }} className="bg-[#4796B7] text-white">
             <Plus className="w-4 h-4 mr-2" /> Registrar Equipo
           </Button>
           <Card>
@@ -292,7 +258,7 @@ const renderStockConDesglose = (insumo: any) => {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right pr-6">
-                        <Button variant="ghost" size="icon" onClick={() => openEquipoDialog(eq)}><Edit className="w-4 h-4 text-slate-400" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => { setEditingEquipo(eq); setEquipoFormData({nombre_equipo: eq.nombre_equipo, descripcion: eq.descripcion, estado: eq.estado}); setIsEquipoDialogOpen(true); }}><Edit className="w-4 h-4 text-slate-400" /></Button>
                         <Button variant="ghost" size="icon" className="text-red-400" onClick={() => storage.deleteEquipoMedico(eq.id_equipo).then(() => queryClient.invalidateQueries())}><Trash2 className="w-4 h-4" /></Button>
                       </TableCell>
                     </TableRow>
@@ -308,9 +274,8 @@ const renderStockConDesglose = (insumo: any) => {
       <Dialog open={isInsumoDialogOpen} onOpenChange={setIsInsumoDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-emerald-600">
-              <Plus className="w-5 h-5" /> Nueva Donación de Insumo
-            </DialogTitle>
+            <DialogTitle className="text-emerald-600">Nueva Donación de Insumo</DialogTitle>
+            <DialogDescription>Registre el ingreso de nuevos suministros al inventario.</DialogDescription>
           </DialogHeader>
           <form onSubmit={(e) => { e.preventDefault(); mutationEntrada.mutate(insumoFormData); }} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -326,7 +291,7 @@ const renderStockConDesglose = (insumo: any) => {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase text-slate-500">Categoría del Insumo</Label>
+                <Label className="text-xs font-bold uppercase text-slate-500">Categoría</Label>
                 <Select value={insumoFormData.tipo_insumo} onValueChange={(v) => setInsumoFormData({...insumoFormData, tipo_insumo: v})}>
                   <SelectTrigger className="bg-slate-50"><SelectValue placeholder="Categoría..." /></SelectTrigger>
                   <SelectContent>
@@ -342,38 +307,30 @@ const renderStockConDesglose = (insumo: any) => {
             </div>
 
             <div className="p-4 border border-emerald-100 rounded-xl bg-emerald-50/30 space-y-4">
-              <div className="flex items-center gap-2 text-emerald-700 font-bold text-sm">
-                <Package className="w-4 h-4" /> Cálculo de Donación por Cajas
-              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label className="text-[10px] uppercase text-slate-400">Cantidad de Cajas</Label>
-                  <Input type="number" placeholder="0" value={insumoFormData.cantidad_cajas} onChange={(e) => setInsumoFormData({...insumoFormData, cantidad_cajas: e.target.value})} />
+                  <Input type="number" value={insumoFormData.cantidad_cajas} onChange={(e) => setInsumoFormData({...insumoFormData, cantidad_cajas: e.target.value})} />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-[10px] uppercase text-slate-400">Unidades por Caja</Label>
-                  <Input type="number" placeholder="0" value={insumoFormData.unidades_por_caja} onChange={(e) => setInsumoFormData({...insumoFormData, unidades_por_caja: e.target.value})} />
+                  <Input type="number" value={insumoFormData.unidades_por_caja} onChange={(e) => setInsumoFormData({...insumoFormData, unidades_por_caja: e.target.value})} />
                 </div>
               </div>
               <div className="space-y-1">
-                <Label className="text-[10px] uppercase text-slate-400">Unidades Sueltas (Extras)</Label>
-                <Input type="number" placeholder="0" value={insumoFormData.cantidad_unidades} onChange={(e) => setInsumoFormData({...insumoFormData, cantidad_unidades: e.target.value})} />
+                <Label className="text-[10px] uppercase text-slate-400">Unidades Sueltas</Label>
+                <Input type="number" value={insumoFormData.cantidad_unidades} onChange={(e) => setInsumoFormData({...insumoFormData, cantidad_unidades: e.target.value})} />
               </div>
-              { (insumoFormData.cantidad_cajas || insumoFormData.cantidad_unidades) && (
-                <div className="text-xs font-bold text-center text-emerald-600 bg-white py-2 rounded-lg border border-emerald-100">
-                  TOTAL A REGISTRAR: {(parseInt(insumoFormData.cantidad_cajas || '0') * parseInt(insumoFormData.unidades_por_caja || '0')) + parseInt(insumoFormData.cantidad_unidades || '0')} UNIDADES
-                </div>
-              )}
             </div>
 
             <div className="space-y-2">
               <Label className="text-xs font-bold uppercase text-slate-500">Observaciones</Label>
-              <Textarea placeholder="Detalles adicionales..." className="h-20" value={insumoFormData.observaciones} onChange={(e) => setInsumoFormData({ ...insumoFormData, observaciones: e.target.value })} />
+              <Textarea placeholder="Detalles..." className="h-20" value={insumoFormData.observaciones} onChange={(e) => setInsumoFormData({ ...insumoFormData, observaciones: e.target.value })} />
             </div>
 
             <DialogFooter>
-              <Button type="submit" className="w-full bg-emerald-600 text-white" disabled={mutationEntrada.isPending || !insumoFormData.tipo_insumo || !insumoFormData.folio}>
-                {mutationEntrada.isPending ? <Loader2 className="animate-spin mr-2" /> : "Confirmar Entrada de Insumo"}
+              <Button type="submit" className="w-full bg-emerald-600 text-white" disabled={mutationEntrada.isPending}>
+                {mutationEntrada.isPending ? <Loader2 className="animate-spin" /> : "Confirmar Entrada"}
               </Button>
             </DialogFooter>
           </form>
@@ -383,12 +340,15 @@ const renderStockConDesglose = (insumo: any) => {
       {/* DIÁLOGO SALIDA */}
       <Dialog open={isSalidaDialogOpen} onOpenChange={setIsSalidaDialogOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle className="text-red-600 flex items-center gap-2"><ArrowDownCircle className="w-5 h-5" /> Registrar Salida</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle className="text-red-600">Registrar Salida</DialogTitle>
+            <DialogDescription>Descuente unidades del inventario de insumos.</DialogDescription>
+          </DialogHeader>
           <form onSubmit={(e) => { e.preventDefault(); mutationSalida.mutate(salidaFormData); }} className="space-y-4">
              <div className="space-y-2">
               <Label>Folio de Referencia</Label>
               <Select value={salidaFormData.folio} onValueChange={(v) => setSalidaFormData({...salidaFormData, folio: v})}>
-                <SelectTrigger><SelectValue placeholder="Seleccione folio..." /></SelectTrigger>
+                <SelectTrigger className="bg-white"><SelectValue placeholder="Seleccione folio..." /></SelectTrigger>
                 <SelectContent>
                   {foliosActivos.map((f: any) => (
                     <SelectItem key={f.id_folio} value={f.id_folio.toString()}>Fol-2026-{f.id_folio}</SelectItem>
@@ -399,7 +359,7 @@ const renderStockConDesglose = (insumo: any) => {
             <div className="space-y-2">
               <Label>Insumo</Label>
               <Select value={salidaFormData.id_insumo} onValueChange={(v) => setSalidaFormData({...salidaFormData, id_insumo: v})}>
-                <SelectTrigger><SelectValue placeholder="Seleccione insumo..." /></SelectTrigger>
+                <SelectTrigger className="bg-white"><SelectValue placeholder="Seleccione insumo..." /></SelectTrigger>
                 <SelectContent>
                   {insumos.map(i => <SelectItem key={i.id_insumo} value={i.id_insumo.toString()}>{i.nombre_insumo} ({i.cantidad_actual} disp.)</SelectItem>)}
                 </SelectContent>
@@ -409,7 +369,15 @@ const renderStockConDesglose = (insumo: any) => {
               <Label>Cantidad (Unidades)</Label>
               <Input type="number" min="1" value={salidaFormData.cantidad} onChange={(e) => setSalidaFormData({ ...salidaFormData, cantidad: e.target.value })} required />
             </div>
-            <DialogFooter><Button type="submit" className="w-full bg-red-600 text-white">Confirmar Egreso</Button></DialogFooter>
+            <div className="space-y-2">
+              <Label>Motivo / Nota</Label>
+              <Input placeholder="Ej. Uso en curación" value={salidaFormData.observacion} onChange={(e) => setSalidaFormData({ ...salidaFormData, observacion: e.target.value })} />
+            </div>
+            <DialogFooter>
+                <Button type="submit" className="w-full bg-red-600 text-white" disabled={mutationSalida.isPending}>
+                    {mutationSalida.isPending ? <Loader2 className="animate-spin" /> : "Confirmar Egreso"}
+                </Button>
+            </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
@@ -417,7 +385,10 @@ const renderStockConDesglose = (insumo: any) => {
       {/* DIÁLOGO EQUIPO */}
       <Dialog open={isEquipoDialogOpen} onOpenChange={setIsEquipoDialogOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>{editingEquipo ? 'Editar' : 'Nuevo'} Equipo Médico</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>{editingEquipo ? 'Editar' : 'Nuevo'} Equipo Médico</DialogTitle>
+            <DialogDescription>Gestione el estado y descripción de los equipos físicos.</DialogDescription>
+          </DialogHeader>
           <form onSubmit={(e) => { e.preventDefault(); mutationEquipo.mutate({ ...equipoFormData, id_equipo: editingEquipo?.id_equipo }); }} className="space-y-4">
             <div><Label>Nombre</Label><Input value={equipoFormData.nombre_equipo} onChange={(e) => setEquipoFormData({ ...equipoFormData, nombre_equipo: e.target.value })} required /></div>
             <div><Label>Descripción</Label><Textarea value={equipoFormData.descripcion} onChange={(e) => setEquipoFormData({ ...equipoFormData, descripcion: e.target.value })} required /></div>

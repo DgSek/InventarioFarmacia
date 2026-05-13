@@ -25,7 +25,7 @@ export const storage = {
     const response = await fetch(`${API_URL}/medicamentos`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(medicamento), // Ya no envía sede (eliminada del tipo Medicamento)
+      body: JSON.stringify(medicamento),
     });
     return await response.json();
   },
@@ -50,7 +50,7 @@ export const storage = {
     const response = await fetch(`${API_URL}/existencias`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(existencia), // Ahora incluye 'sede' según la nueva interfaz
+      body: JSON.stringify(existencia),
     });
     return await response.json();
   },
@@ -87,7 +87,7 @@ export const storage = {
     return await response.json();
   },
 
-  // --- INSUMOS (CON FOLIOS) ---
+  // --- INSUMOS ---
   async getInsumos(): Promise<Insumo[]> {
     const response = await fetch(`${API_URL}/insumos`);
     const data = await response.json();
@@ -95,36 +95,59 @@ export const storage = {
   },
 
   async registrarEntradaDonacion(
-  nombre_insumo: string, 
-  cantidad: number, 
-  folio: number, 
-  observaciones: string,
-  tipo_insumo: string // <--- 1. Agregamos el parámetro aquí
-): Promise<any> {
-  const response = await fetch(`${API_URL}/insumos/entrada`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    // 2. Lo agregamos al cuerpo del JSON que se envía al servidor
-    body: JSON.stringify({ 
-      nombre_insumo, 
-      cantidad, 
-      folio, 
-      observaciones, 
-      tipo_insumo 
-    }),
-  });
-
-  if (!response.ok) throw new Error('Error al registrar donación');
-  return await response.json();
-},
-
-  async updateInsumo(insumo: Insumo): Promise<Insumo> {
-    const response = await fetch(`${API_URL}/insumos/${insumo.id_insumo}`, {
-      method: 'PUT',
+    nombre_insumo: string, 
+    cantidad: number, 
+    folio: number, 
+    observaciones: string,
+    tipo_insumo: string
+  ): Promise<any> {
+    const response = await fetch(`${API_URL}/insumos/entrada`, {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(insumo),
+      body: JSON.stringify({ 
+        nombre_insumo, 
+        cantidad, 
+        folio, 
+        observaciones, 
+        tipo_insumo 
+      }),
     });
+
+    if (!response.ok) throw new Error('Error al registrar donación');
     return await response.json();
+  },
+
+  // CORREGIDO: registrarSalidaInsumo para evitar Error 500
+  async registrarSalidaInsumo(
+    id_insumo: number, 
+    cantidad: number, 
+    observacion?: string, 
+    folio?: string
+  ): Promise<boolean> {
+    const response = await fetch(`${API_URL}/insumos/salida`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      // Aseguramos que los tipos sean correctos antes de enviar
+      body: JSON.stringify({ 
+        id_insumo: Number(id_insumo), 
+        cantidad: Number(cantidad), 
+        observacion: observacion || '', 
+        folio: Number(folio) // El backend espera un integer para el folio
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error("Error servidor:", errorData);
+      return false;
+    }
+    return true;
+  },
+
+  async getSalidasInsumos(): Promise<SalidaInsumo[]> {
+    const response = await fetch(`${API_URL}/insumos/salidas`);
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
   },
 
   async deleteInsumo(id_insumo: number): Promise<boolean> {
@@ -132,21 +155,6 @@ export const storage = {
       method: 'DELETE',
     });
     return response.ok;
-  },
-
-  async registrarSalidaInsumo(id_insumo: number, cantidad: number, observacion?: string, folio?: string): Promise<boolean> {
-    const response = await fetch(`${API_URL}/insumos/salida`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id_insumo, cantidad, observacion, folio }),
-    });
-    return response.ok;
-  },
-
-  async getSalidasInsumos(): Promise<SalidaInsumo[]> {
-    const response = await fetch(`${API_URL}/insumos/salidas`);
-    const data = await response.json();
-    return Array.isArray(data) ? data : [];
   },
 
   // --- EQUIPO MÉDICO ---
@@ -221,8 +229,6 @@ export const storage = {
 
   async getAlertas(): Promise<Alerta[]> {
     const inventario = await this.getInventarioCompleto();
-    
-    // Ahora las alertas muestran la sede de donde proviene la existencia
     return inventario
       .filter(item => item.cantidad_total <= item.medicamento.stock_minimo)
       .map(item => ({
@@ -233,10 +239,10 @@ export const storage = {
         tipo_medicamento: item.medicamento.tipo_medicamento,
         ubicacion: item.medicamento.ubicacion,
         estante: item.medicamento.estante,
-        // Tomamos la sede de la primera existencia disponible como referencia para la alerta
         sede: item.existencias[0]?.sede || 'Sin Sede Asignada'
       }));
   },
+
   async getReporteConsumo(): Promise<ReporteConsumo[]> {
     const [medicamentos, movimientos, existencias] = await Promise.all([
       this.getMedicamentos(),
@@ -253,7 +259,7 @@ export const storage = {
         const actual = consumoMap.get(ex.id_medicamento) || { 
           cantidad: 0, 
           movimientos: 0, 
-          sede: ex.sede // Guardamos la sede de la existencia
+          sede: ex.sede 
         };
         consumoMap.set(ex.id_medicamento, {
           cantidad: actual.cantidad + m.cantidad,
@@ -270,7 +276,7 @@ export const storage = {
         tipo_medicamento: med?.tipo_medicamento || 'N/A',
         cantidad_total: stats.cantidad,
         num_movimientos: stats.movimientos,
-        sede: stats.sede // <--- Esto es lo que faltaba para cumplir con la interfaz
+        sede: stats.sede 
       };
     });
 
