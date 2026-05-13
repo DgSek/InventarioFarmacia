@@ -22,7 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-  DialogDescription, // Importado para corregir advertencia de accesibilidad
+  DialogDescription,
 } from '../components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import {
@@ -33,8 +33,7 @@ import {
   Box,
   Stethoscope,
   Loader2,
-  Package,
-  AlertCircle
+  Package
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -63,15 +62,14 @@ export function Insumos() {
     cantidad_unidades: '', 
     cantidad_cajas: '',    
     unidades_por_caja: '', 
-    folio: '', // Cambiado para coincidir con tu lógica de DB
+    folio: '',
     observaciones: ''
   });
 
   const [salidaFormData, setSalidaFormData] = useState({
     id_insumo: '',
     cantidad: '',
-    observacion: '',
-    folio: '' // Cambiado de id_folio a folio para consistencia
+    observacion: ''
   });
 
   const [equipoFormData, setEquipoFormData] = useState({
@@ -125,19 +123,16 @@ export function Insumos() {
     mutationFn: (data: any) => storage.registrarSalidaInsumo(
       parseInt(data.id_insumo),
       parseInt(data.cantidad),
-      data.observacion,
-      data.folio // Enviando como folio
+      data.observacion
     ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['insumos'] });
       queryClient.invalidateQueries({ queryKey: ['salidas-insumos'] });
-      toast.success('Salida registrada y stock actualizado');
+      toast.success('Salida registrada correctamente');
       setIsSalidaDialogOpen(false);
+      setSalidaFormData({ id_insumo: '', cantidad: '', observacion: '' });
     },
-    onError: (error) => {
-        console.error(error);
-        toast.error('Error al registrar la salida. Verifique el stock.');
-    }
+    onError: () => toast.error('Error al registrar la salida. Verifique stock.')
   });
 
   const mutationEquipo = useMutation({
@@ -275,7 +270,7 @@ export function Insumos() {
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle className="text-emerald-600">Nueva Donación de Insumo</DialogTitle>
-            <DialogDescription>Registre el ingreso de nuevos suministros al inventario.</DialogDescription>
+            <DialogDescription>Rellene los datos para registrar la entrada de material al almacén.</DialogDescription>
           </DialogHeader>
           <form onSubmit={(e) => { e.preventDefault(); mutationEntrada.mutate(insumoFormData); }} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -303,17 +298,17 @@ export function Insumos() {
 
             <div className="space-y-2">
               <Label className="text-xs font-bold uppercase text-slate-500">Nombre del Insumo</Label>
-              <Input placeholder="Ej. Jeringas 5ml" value={insumoFormData.nombre_insumo} onChange={(e) => setInsumoFormData({ ...insumoFormData, nombre_insumo: e.target.value })} required />
+              <Input placeholder="Ej. Gasa estéril" value={insumoFormData.nombre_insumo} onChange={(e) => setInsumoFormData({ ...insumoFormData, nombre_insumo: e.target.value })} required />
             </div>
 
             <div className="p-4 border border-emerald-100 rounded-xl bg-emerald-50/30 space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-[10px] uppercase text-slate-400">Cantidad de Cajas</Label>
+                  <Label className="text-[10px] uppercase text-slate-400">Cajas</Label>
                   <Input type="number" value={insumoFormData.cantidad_cajas} onChange={(e) => setInsumoFormData({...insumoFormData, cantidad_cajas: e.target.value})} />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-[10px] uppercase text-slate-400">Unidades por Caja</Label>
+                  <Label className="text-[10px] uppercase text-slate-400">U. por Caja</Label>
                   <Input type="number" value={insumoFormData.unidades_por_caja} onChange={(e) => setInsumoFormData({...insumoFormData, unidades_por_caja: e.target.value})} />
                 </div>
               </div>
@@ -325,7 +320,7 @@ export function Insumos() {
 
             <div className="space-y-2">
               <Label className="text-xs font-bold uppercase text-slate-500">Observaciones</Label>
-              <Textarea placeholder="Detalles..." className="h-20" value={insumoFormData.observaciones} onChange={(e) => setInsumoFormData({ ...insumoFormData, observaciones: e.target.value })} />
+              <Textarea placeholder="Detalles de la donación..." className="h-20" value={insumoFormData.observaciones} onChange={(e) => setInsumoFormData({ ...insumoFormData, observaciones: e.target.value })} />
             </div>
 
             <DialogFooter>
@@ -337,41 +332,30 @@ export function Insumos() {
         </DialogContent>
       </Dialog>
 
-      {/* DIÁLOGO SALIDA */}
+      {/* DIÁLOGO SALIDA (SIN FOLIO, SEGÚN DB) */}
       <Dialog open={isSalidaDialogOpen} onOpenChange={setIsSalidaDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="text-red-600">Registrar Salida</DialogTitle>
-            <DialogDescription>Descuente unidades del inventario de insumos.</DialogDescription>
+            <DialogTitle className="text-red-600">Registrar Salida de Insumo</DialogTitle>
+            <DialogDescription>Seleccione el insumo y la cantidad a egresar.</DialogDescription>
           </DialogHeader>
           <form onSubmit={(e) => { e.preventDefault(); mutationSalida.mutate(salidaFormData); }} className="space-y-4">
-             <div className="space-y-2">
-              <Label>Folio de Referencia</Label>
-              <Select value={salidaFormData.folio} onValueChange={(v) => setSalidaFormData({...salidaFormData, folio: v})}>
-                <SelectTrigger className="bg-white"><SelectValue placeholder="Seleccione folio..." /></SelectTrigger>
-                <SelectContent>
-                  {foliosActivos.map((f: any) => (
-                    <SelectItem key={f.id_folio} value={f.id_folio.toString()}>Fol-2026-{f.id_folio}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
             <div className="space-y-2">
-              <Label>Insumo</Label>
+              <Label>Seleccionar Insumo</Label>
               <Select value={salidaFormData.id_insumo} onValueChange={(v) => setSalidaFormData({...salidaFormData, id_insumo: v})}>
-                <SelectTrigger className="bg-white"><SelectValue placeholder="Seleccione insumo..." /></SelectTrigger>
+                <SelectTrigger className="bg-white"><SelectValue placeholder="Insumo..." /></SelectTrigger>
                 <SelectContent>
                   {insumos.map(i => <SelectItem key={i.id_insumo} value={i.id_insumo.toString()}>{i.nombre_insumo} ({i.cantidad_actual} disp.)</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Cantidad (Unidades)</Label>
+              <Label>Cantidad a Egresar (Unidades)</Label>
               <Input type="number" min="1" value={salidaFormData.cantidad} onChange={(e) => setSalidaFormData({ ...salidaFormData, cantidad: e.target.value })} required />
             </div>
             <div className="space-y-2">
-              <Label>Motivo / Nota</Label>
-              <Input placeholder="Ej. Uso en curación" value={salidaFormData.observacion} onChange={(e) => setSalidaFormData({ ...salidaFormData, observacion: e.target.value })} />
+              <Label>Nota / Observación</Label>
+              <Input placeholder="Ej. Solicitado por enfermería" value={salidaFormData.observacion} onChange={(e) => setSalidaFormData({ ...salidaFormData, observacion: e.target.value })} />
             </div>
             <DialogFooter>
                 <Button type="submit" className="w-full bg-red-600 text-white" disabled={mutationSalida.isPending}>
@@ -387,7 +371,7 @@ export function Insumos() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editingEquipo ? 'Editar' : 'Nuevo'} Equipo Médico</DialogTitle>
-            <DialogDescription>Gestione el estado y descripción de los equipos físicos.</DialogDescription>
+            <DialogDescription>Actualice la información o el estado del equipo médico.</DialogDescription>
           </DialogHeader>
           <form onSubmit={(e) => { e.preventDefault(); mutationEquipo.mutate({ ...equipoFormData, id_equipo: editingEquipo?.id_equipo }); }} className="space-y-4">
             <div><Label>Nombre</Label><Input value={equipoFormData.nombre_equipo} onChange={(e) => setEquipoFormData({ ...equipoFormData, nombre_equipo: e.target.value })} required /></div>

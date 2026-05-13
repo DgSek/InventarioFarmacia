@@ -199,44 +199,32 @@ app.post('/api/insumos/entrada', async (req, res) => {
   }
 });
 
-// CORREGIDO: Endpoint de salida de insumos para que reste stock correctamente
+// CORREGIDO: Eliminada la columna "folio" que no existe en Salidas_Insumos
 app.post('/api/insumos/salida', async (req, res) => {
-  const { id_insumo, cantidad, observacion, folio } = req.body;
-  
-  // Convertimos a números para evitar errores de tipo en la DB
-  const insumoID = parseInt(id_insumo);
-  const cantNum = parseInt(cantidad);
-  const folioID = parseInt(folio);
+  const { id_insumo, cantidad, observacion } = req.body;
 
   try {
     await pool.query('BEGIN');
     
-    // 1. Insertamos el registro de salida
-    const insertSalida = await pool.query(
-      'INSERT INTO Salidas_Insumos (id_insumo, cantidad, observacion, folio) VALUES ($1, $2, $3, $4) RETURNING *',
-      [insumoID, cantNum, observacion, folioID]
+    // 1. Insertamos registro (sin folio, según imagen 9b919e.png)
+    const insertRes = await pool.query(
+      'INSERT INTO Salidas_Insumos (id_insumo, cantidad, observacion) VALUES ($1, $2, $3) RETURNING *',
+      [parseInt(id_insumo), parseInt(cantidad), observacion || '']
     );
 
-    // 2. Restamos de la tabla Insumos
-    const updateStock = await pool.query(
+    // 2. Restamos stock
+    const updateRes = await pool.query(
       'UPDATE Insumos SET cantidad_actual = cantidad_actual - $1 WHERE id_insumo = $2 RETURNING cantidad_actual',
-      [cantNum, insumoID]
+      [parseInt(cantidad), parseInt(id_insumo)]
     );
 
-    if (updateStock.rowCount === 0) {
-        throw new Error("El insumo no existe para actualizar stock.");
-    }
+    if (updateRes.rowCount === 0) throw new Error("Insumo no encontrado");
 
     await pool.query('COMMIT');
-    res.json({ 
-        success: true, 
-        message: "Salida registrada", 
-        data: insertSalida.rows[0],
-        nuevo_stock: updateStock.rows[0].cantidad_actual 
-    });
+    res.json({ success: true, message: "Salida registrada", nuevo_stock: updateRes.rows[0].cantidad_actual });
   } catch (err) {
     await pool.query('ROLLBACK');
-    console.error('❌ Error en salida insumo:', err.message);
+    console.error("❌ Error en salida insumo:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -298,7 +286,8 @@ app.put('/api/equipo-medico/:id', async (req, res) => {
   const { nombre_equipo, descripcion, estado } = req.body;
   try {
     const result = await pool.query(
-      'UPDATE Equipo_Medico SET nombre_equipo=$1, descripcion=$2, estado=$3 WHERE id_equipo=$4 RETURNING *',
+      `UPDATE Equipo_Medico SET nombre_equipo=$1, descripcion=$2, estado=$3 
+       WHERE id_equipo=$4 RETURNING *`,
       [nombre_equipo, descripcion, estado, id]
     );
     res.json(result.rows[0]);
@@ -329,6 +318,7 @@ app.get('/api/folios-activos', async (req, res) => {
     `);
     res.json(folios.rows);
   } catch (err) {
+    console.error('Error en folios:', err.message);
     res.status(500).json({ error: 'Error al consultar folios de Farmacia' });
   }
 });

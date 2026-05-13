@@ -117,28 +117,25 @@ export const storage = {
     return await response.json();
   },
 
-  // CORREGIDO: registrarSalidaInsumo para evitar Error 500
+  // CORREGIDO: Eliminado el envío de folio para salidas (No existe en la tabla salidas_insumos)
   async registrarSalidaInsumo(
     id_insumo: number, 
     cantidad: number, 
-    observacion?: string, 
-    folio?: string
+    observacion?: string
   ): Promise<boolean> {
     const response = await fetch(`${API_URL}/insumos/salida`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      // Aseguramos que los tipos sean correctos antes de enviar
       body: JSON.stringify({ 
         id_insumo: Number(id_insumo), 
         cantidad: Number(cantidad), 
-        observacion: observacion || '', 
-        folio: Number(folio) // El backend espera un integer para el folio
+        observacion: observacion || ''
       }),
     });
     
     if (!response.ok) {
       const errorData = await response.json();
-      console.error("Error servidor:", errorData);
+      console.error("Error servidor en salida de insumo:", errorData);
       return false;
     }
     return true;
@@ -206,6 +203,7 @@ export const storage = {
   async getCurrentUser(): Promise<Usuario> {
     const response = await fetch(`${API_URL}/usuarios`);
     const usuarios = await response.json();
+    // Intenta encontrar al usuario con ID 1 o devuelve el primero disponible
     return usuarios.find((u: any) => u.id_usuario === 1) || usuarios[0] || { id_usuario: 1, nombre_usuario: 'Admin' };
   },
 
