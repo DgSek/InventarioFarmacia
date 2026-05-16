@@ -29,14 +29,14 @@ import {
   PopoverTrigger,
 } from "../components/ui/popover";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
-import { 
-  Plus, 
-  ArrowUpCircle, 
-  ArrowDownCircle, 
-  User, 
-  Loader2, 
-  Search, 
-  Check, 
+import {
+  Plus,
+  ArrowUpCircle,
+  ArrowDownCircle,
+  User,
+  Loader2,
+  Search,
+  Check,
   Building2,
   ArrowRightLeft,
   MessageSquare,
@@ -52,6 +52,8 @@ export function Movimientos() {
   const [scanBuffer, setScanBuffer] = useState('');
   const [selectedMedId, setSelectedMedId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<'simple' | 'traspaso'>('simple');
+  const [currentPage, setCurrentPage] = useState(1);
+  const MOVIMIENTOS_POR_PAGINA = 25;
 
   const [formData, setFormData] = useState({
     id_existencia: '',
@@ -59,7 +61,7 @@ export function Movimientos() {
     tipo_movimiento: 'salida' as TipoMovimiento,
     cantidad: '',
     observaciones: '',
-    folio: '', 
+    folio: '',
   });
 
   // --- CARGA DE DATOS ---
@@ -86,20 +88,33 @@ export function Movimientos() {
     }))
   ].sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
 
+  const movimientosFiltrados = historialUnificado.filter(
+    m => filterTipo === 'todos' || m.tipo_movimiento === filterTipo
+  );
+
+  const totalPages = Math.ceil(
+    movimientosFiltrados.length / MOVIMIENTOS_POR_PAGINA
+  );
+
+  const movimientosPaginados = movimientosFiltrados.slice(
+    (currentPage - 1) * MOVIMIENTOS_POR_PAGINA,
+    currentPage * MOVIMIENTOS_POR_PAGINA
+  );
+
   // --- EFECTO: OBSERVACIONES DINÁMICAS (CORREGIDO PARA EVITAR BUCLE INFINITO) ---
   useEffect(() => {
     if (activeTab === 'traspaso') {
       const sedeO = existencias.find(ex => ex.id_existencia.toString() === formData.id_existencia)?.sede || '...';
       const sedeD = existencias.find(ex => ex.id_existencia.toString() === formData.id_existencia_destino)?.sede || '...';
       const nuevaObs = `Traspaso: ${sedeO} -> ${sedeD}`;
-      
+
       // Solo actualizamos si el valor es realmente diferente para prevenir el error de profundidad máxima
       if (formData.observaciones !== nuevaObs && (formData.id_existencia || formData.id_existencia_destino)) {
-          setFormData(prev => ({ ...prev, observaciones: nuevaObs }));
+        setFormData(prev => ({ ...prev, observaciones: nuevaObs }));
       }
     } else if (activeTab === 'simple' && formData.observaciones.startsWith('Traspaso:')) {
-       // Limpiar si regresamos a simple y había un texto de traspaso
-       setFormData(prev => ({ ...prev, observaciones: '' }));
+      // Limpiar si regresamos a simple y había un texto de traspaso
+      setFormData(prev => ({ ...prev, observaciones: '' }));
     }
   }, [activeTab, formData.id_existencia, formData.id_existencia_destino, existencias]);
 
@@ -175,8 +190,8 @@ export function Movimientos() {
       <Card>
         <CardContent className="p-0">
           <Table>
-            <TableHeader className="bg-slate-50">
-              <TableRow>
+            <TableHeader>
+              <TableRow className="hover:bg-[#4796B7]/10 border-b transition-colors">
                 <TableHead>Fecha</TableHead>
                 <TableHead>Folio</TableHead>
                 <TableHead>Artículo</TableHead>
@@ -187,67 +202,91 @@ export function Movimientos() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {historialUnificado
-                .filter(m => filterTipo === 'todos' || m.tipo_movimiento === filterTipo)
-                .map((m) => {
-                  const esMed = m.origen === 'medicamento';
-                  let nombre = "";
-                  let sub = "";
+              {movimientosPaginados.map((m) => {
+                const esMed = m.origen === 'medicamento';
+                let nombre = "";
+                let sub = "";
 
-                  if (esMed) {
-                    const ex = existencias.find(e => e.id_existencia === m.id_existencia);
-                    nombre = medicamentos.find(med => med.id_medicamento === ex?.id_medicamento)?.nombre || 'Medicamento';
-                    sub = ex?.sede || 'Sin sede';
-                  } else {
-                    nombre = insumos.find(i => i.id_insumo === m.id_existencia)?.nombre_insumo || 'Insumo';
-                    sub = 'Insumo Médico';
-                  }
+                if (esMed) {
+                  const ex = existencias.find(e => e.id_existencia === m.id_existencia);
+                  nombre = medicamentos.find(med => med.id_medicamento === ex?.id_medicamento)?.nombre || 'Medicamento';
+                  sub = ex?.sede || 'Sin sede';
+                } else {
+                  nombre = insumos.find(i => i.id_insumo === m.id_existencia)?.nombre_insumo || 'Insumo';
+                  sub = 'Insumo Médico';
+                }
 
-                  return (
-                    <TableRow key={m.id_movimiento}>
-                      <TableCell className="text-xs font-mono">{new Date(m.fecha).toLocaleString()}</TableCell>
-                      <TableCell>{m.folio ? <Badge variant="secondary" className="bg-blue-50 text-blue-700">Fol-{m.folio}</Badge> : '-'}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-col">
-                          <span className="font-medium text-slate-900 flex items-center gap-1">
-                            {!esMed && <Box className="w-3 h-3 text-amber-500" />}
-                            {nombre}
-                          </span>
-                          <span className="text-[10px] text-slate-500 italic">{sub}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="capitalize">
-                          {m.tipo_movimiento === 'entrada' ? <ArrowUpCircle className="w-3 h-3 mr-1 text-emerald-500" /> : <ArrowDownCircle className="w-3 h-3 mr-1 text-blue-500" />}
-                          {m.tipo_movimiento}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="font-bold">{m.cantidad}</TableCell>
-                      <TableCell className="text-center">
-                        {m.observaciones ? (
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-[#4796B7]"><MessageSquare className="w-4 h-4" /></Button>
-                            </PopoverTrigger>
-                            <PopoverContent side="top" className="z-[9999] w-64 p-3 bg-white shadow-xl border border-slate-200">
-                              <p className="text-xs italic text-slate-700">"{m.observaciones}"</p>
-                            </PopoverContent>
-                          </Popover>
-                        ) : <span className="text-slate-300">-</span>}
-                      </TableCell>
-                      <TableCell className="text-xs text-slate-600"><User className="inline w-3 h-3 mr-1" />{usuarioActual?.nombre_usuario || 'Admin'}</TableCell>
-                    </TableRow>
-                  );
-                })}
+                return (
+                  <TableRow key={m.id_movimiento}
+                    className="hover:bg-[#4796B7]/5 transition-colors">
+                    <TableCell className="text-xs font-mono">{new Date(m.fecha).toLocaleString()}</TableCell>
+                    <TableCell>{m.folio ? <Badge variant="secondary" className="bg-blue-50 text-blue-700">Fol-{m.folio}</Badge> : '-'}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className="font-medium text-slate-900 flex items-center gap-1">
+                          {!esMed && <Box className="w-3 h-3 text-amber-500" />}
+                          {nombre}
+                        </span>
+                        <span className="text-[10px] text-slate-500 italic">{sub}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="capitalize">
+                        {m.tipo_movimiento === 'entrada' ? <ArrowUpCircle className="w-3 h-3 mr-1 text-emerald-500" /> : <ArrowDownCircle className="w-3 h-3 mr-1 text-blue-500" />}
+                        {m.tipo_movimiento}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="font-bold">{m.cantidad}</TableCell>
+                    <TableCell className="text-center">
+                      {m.observaciones ? (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-[#4796B7]"><MessageSquare className="w-4 h-4" /></Button>
+                          </PopoverTrigger>
+                          <PopoverContent side="top" className="z-[9999] w-64 p-3 bg-white shadow-xl border border-slate-200">
+                            <p className="text-xs italic text-slate-700">"{m.observaciones}"</p>
+                          </PopoverContent>
+                        </Popover>
+                      ) : <span className="text-slate-300">-</span>}
+                    </TableCell>
+                    <TableCell className="text-xs text-slate-600"><User className="inline w-3 h-3 mr-1" />{usuarioActual?.nombre_usuario || 'Admin'}</TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
+          <div className="flex items-center justify-between px-6 py-4 border-t bg-slate-50/30">
+            <p className="text-sm text-slate-500">
+              Página {currentPage} de {totalPages || 1}
+            </p>
+
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(prev => prev - 1)}
+              >
+                Anterior
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage(prev => prev + 1)}
+              >
+                Siguiente
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[480px] border-slate-200">
           <DialogHeader><DialogTitle className="text-slate-900 font-bold">Nueva Operación</DialogTitle></DialogHeader>
-          <Tabs value={activeTab} onValueChange={(v:any) => setActiveTab(v)}>
+          <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)}>
             <TabsList className="grid w-full grid-cols-2 mb-4 bg-slate-100">
               <TabsTrigger value="simple">Simple</TabsTrigger>
               <TabsTrigger value="traspaso">Traspaso</TabsTrigger>
@@ -259,11 +298,11 @@ export function Movimientos() {
                 {sugerencias.length > 0 && (
                   <div className="bg-white border rounded shadow-md divide-y mt-1 overflow-hidden z-50 relative">
                     {sugerencias.map(m => (
-                      <div key={m.id_medicamento} onClick={() => seleccionarMed(m)} className="p-2 hover:bg-slate-50 cursor-pointer text-sm font-bold">{m.nombre}</div>
+                      <div key={m.id_medicamento} onClick={() => seleccionarMed(m)} className="p-2 hover:bg-[#4796B7]/5 transition-colors cursor-pointer text-sm font-bold">{m.nombre}</div>
                     ))}
                   </div>
                 )}
-                {selectedMedId && <div className="bg-emerald-50 p-2 rounded border border-emerald-100 text-emerald-800 text-xs font-bold flex gap-2"><Check className="w-4 h-4" /> {medicamentos.find(m=>m.id_medicamento===selectedMedId)?.nombre}</div>}
+                {selectedMedId && <div className="bg-emerald-50 p-2 rounded border border-emerald-100 text-emerald-800 text-xs font-bold flex gap-2"><Check className="w-4 h-4" /> {medicamentos.find(m => m.id_medicamento === selectedMedId)?.nombre}</div>}
               </div>
 
               <div className="space-y-2">
@@ -300,7 +339,7 @@ export function Movimientos() {
                 {activeTab === 'simple' && (
                   <div className="space-y-2">
                     <Label className="font-bold text-slate-700">Operación</Label>
-                    <Select value={formData.tipo_movimiento} onValueChange={(v:any) => setFormData({...formData, tipo_movimiento: v})}>
+                    <Select value={formData.tipo_movimiento} onValueChange={(v: any) => setFormData({ ...formData, tipo_movimiento: v })}>
                       <SelectTrigger className="bg-slate-50 border-slate-200"><SelectValue /></SelectTrigger>
                       <SelectContent className="bg-white">
                         <SelectItem value="entrada" className="focus:bg-emerald-50">Entrada (+)</SelectItem>
@@ -319,10 +358,10 @@ export function Movimientos() {
               <div className="grid grid-cols-3 gap-2">
                 <div className="space-y-2">
                   <Label className="font-bold text-slate-700">Folio</Label>
-                  <Select value={formData.folio} onValueChange={(v) => setFormData({...formData, folio: v})}>
+                  <Select value={formData.folio} onValueChange={(v) => setFormData({ ...formData, folio: v })}>
                     <SelectTrigger className="bg-slate-50 border-slate-200"><SelectValue placeholder="Folio" /></SelectTrigger>
                     <SelectContent className="bg-white">
-                      {foliosActivos.map((f:any) => (
+                      {foliosActivos.map((f: any) => (
                         // Validación de seguridad: solo renderizar si f.folio existe
                         f?.folio && (
                           <SelectItem key={f.id_folio} value={f.folio.toString()} className="focus:bg-blue-50">
@@ -335,10 +374,10 @@ export function Movimientos() {
                 </div>
                 <div className="col-span-2 space-y-2">
                   <Label className="font-bold text-slate-700">Observaciones</Label>
-                  <Textarea 
-                    value={formData.observaciones} 
-                    onChange={e => setFormData({ ...formData, observaciones: e.target.value })} 
-                    className="min-h-[80px] bg-slate-50 border-slate-200 text-slate-900" 
+                  <Textarea
+                    value={formData.observaciones}
+                    onChange={e => setFormData({ ...formData, observaciones: e.target.value })}
+                    className="min-h-[80px] bg-slate-50 border-slate-200 text-slate-900"
                   />
                 </div>
               </div>

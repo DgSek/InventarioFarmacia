@@ -194,7 +194,7 @@ export function Insumos() {
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-slate-50/50">
+                  <TableRow className="hover:bg-[#4796B7]/10 border-b transition-colors">
                     <TableHead className="pl-6">Nombre del Insumo</TableHead>
                     <TableHead>Categoría</TableHead>
                     <TableHead>Stock Actual</TableHead>
@@ -203,7 +203,8 @@ export function Insumos() {
                 </TableHeader>
                 <TableBody>
                   {insumos.map((i) => (
-                    <TableRow key={i.id_insumo}>
+                    <TableRow key={i.id_insumo}
+                    className="hover:bg-[#4796B7]/5 transition-colors">
                       <TableCell className="font-bold text-slate-700 pl-6">{i.nombre_insumo}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className="font-normal bg-slate-50 text-slate-600">
@@ -232,7 +233,7 @@ export function Insumos() {
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-slate-50/50">
+                  <TableRow className="hover:bg-[#4796B7]/10 border-b transition-colors">
                     <TableHead className="pl-6">ID</TableHead>
                     <TableHead>Nombre / Descripción</TableHead>
                     <TableHead>Estado</TableHead>
@@ -241,7 +242,8 @@ export function Insumos() {
                 </TableHeader>
                 <TableBody>
                   {equipos.map((eq) => (
-                    <TableRow key={eq.id_equipo}>
+                    <TableRow key={eq.id_equipo}
+                    className="hover:bg-[#4796B7]/5 transition-colors">
                       <TableCell className="pl-6 text-slate-400 font-mono">#{eq.id_equipo}</TableCell>
                       <TableCell>
                         <div className="font-bold text-slate-800">{eq.nombre_equipo}</div>

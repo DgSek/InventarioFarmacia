@@ -29,12 +29,12 @@ export function Existencias() {
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  
+
   const [scanData, setScanData] = useState({
     input_busqueda: '',
-    concentracion: '',      
+    concentracion: '',
     cantidad_actual: '',
-    sede: '', 
+    sede: '',
     id_medicamento: null as number | null,
     nombre_medicamento: ''
   });
@@ -83,8 +83,8 @@ export function Existencias() {
 
   const sugerencias = scanData.input_busqueda.trim() && !scanData.id_medicamento
     ? medicamentos
-        .filter(m => m.activo && m.nombre.toLowerCase().includes(scanData.input_busqueda.toLowerCase()))
-        .slice(0, 3) 
+      .filter(m => m.activo && m.nombre.toLowerCase().includes(scanData.input_busqueda.toLowerCase()))
+      .slice(0, 3)
     : [];
 
   // --- MUTACIÓN ---
@@ -92,17 +92,17 @@ export function Existencias() {
     mutationFn: async (newData: any) => {
       const existencia = await storage.saveExistencia({
         id_medicamento: newData.id_medicamento,
-        concentracion: (newData.concentracion || "").trim(), 
+        concentracion: (newData.concentracion || "").trim(),
         cantidad_actual: parseInt(newData.cantidad_actual),
         sede: newData.sede || "General",
         fecha_registro: new Date().toISOString().split('T')[0]
       });
-      
+
       await storage.registrarMovimiento(
-        existencia.id_existencia, 
-        'entrada', 
-        parseInt(newData.cantidad_actual), 
-        1, 
+        existencia.id_existencia,
+        'entrada',
+        parseInt(newData.cantidad_actual),
+        1,
         `Ingreso en ${newData.sede}: ${newData.concentracion}`
       );
       return existencia;
@@ -127,13 +127,13 @@ export function Existencias() {
 
   const closeDialog = () => {
     setIsDialogOpen(false);
-    setScanData({ 
-      input_busqueda: '', 
-      concentracion: '', 
-      cantidad_actual: '', 
+    setScanData({
+      input_busqueda: '',
+      concentracion: '',
+      cantidad_actual: '',
       sede: '',
-      id_medicamento: null, 
-      nombre_medicamento: '' 
+      id_medicamento: null,
+      nombre_medicamento: ''
     });
   };
 
@@ -143,7 +143,7 @@ export function Existencias() {
   const filteredExistencias = existencias.filter(e => {
     const med = getMedicamentoInfo(e.id_medicamento);
     if (!med || !med.activo) return false;
-    
+
     const term = searchTerm.toLowerCase();
     const nombreMed = (med.nombre || "").toLowerCase();
     const concentracionEx = (e.concentracion || "").toLowerCase();
@@ -175,10 +175,10 @@ export function Existencias() {
 
       <Card className="border-none shadow-sm bg-slate-50/50">
         <CardContent className="pt-6">
-          <Input 
-            placeholder="Buscar por nombre, concentración o sede..." 
-            value={searchTerm} 
-            onChange={e => setSearchTerm(e.target.value)} 
+          <Input
+            placeholder="Buscar por nombre, concentración o sede..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
             className="bg-white"
           />
         </CardContent>
@@ -188,10 +188,10 @@ export function Existencias() {
         {Object.entries(existenciasPorMedicamento).map(([medId, exs]) => {
           const medicamento = getMedicamentoInfo(parseInt(medId));
           if (!medicamento) return null;
-          
+
           const cantidadTotal = exs.reduce((sum, e) => sum + e.cantidad_actual, 0);
           const bajoStock = cantidadTotal <= medicamento.stock_minimo;
-          
+
           return (
             <Card key={medId} className={bajoStock ? "border-red-200" : "border-slate-200"}>
               <CardHeader className="pb-2 bg-slate-50/30">
@@ -202,7 +202,9 @@ export function Existencias() {
                     </div>
                     <div>
                       <CardTitle className="text-lg font-bold">{medicamento.nombre}</CardTitle>
-                      <Badge variant="secondary" className="mt-1 text-[10px] uppercase">{medicamento.tipo_medicamento}</Badge>
+                      <Badge variant="secondary" className="mt-1 text-[10px] uppercase bg-blue-100">
+                        {medicamento.tipo_medicamento}
+                      </Badge>
                     </div>
                   </div>
                   <div className="text-right">
@@ -214,7 +216,7 @@ export function Existencias() {
               <CardContent className="p-0">
                 <Table>
                   <TableHeader>
-                    <TableRow>
+                    <TableRow className="hover:bg-[#4796B7]/5 transition-colors">
                       <TableHead className="pl-6">Presentación</TableHead>
                       <TableHead>Sede</TableHead>
                       <TableHead>Stock</TableHead>
@@ -223,12 +225,13 @@ export function Existencias() {
                   </TableHeader>
                   <TableBody>
                     {exs.map((e) => (
-                      <TableRow key={e.id_existencia}>
+                      <TableRow key={e.id_existencia}
+                      className="hover:bg-[#4796B7]/5 transition-colors">
                         <TableCell className="pl-6 font-medium text-slate-700">
-                           <div className="flex items-center gap-2">
-                             <Beaker className="w-3 h-3 text-slate-400" />
-                             {e.concentracion || "N/A"}
-                           </div>
+                          <div className="flex items-center gap-2">
+                            <Beaker className="w-3 h-3 text-slate-400" />
+                            {e.concentracion || "N/A"}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
@@ -254,11 +257,11 @@ export function Existencias() {
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader><DialogTitle>Registrar Ingreso de Stock</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 pt-4">
-            
+
             <div className="space-y-2">
               <Label className="font-bold">1. Producto</Label>
-              <Input 
-                autoFocus 
+              <Input
+                autoFocus
                 placeholder="Escanee código o escriba nombre..."
                 value={scanData.input_busqueda}
                 onChange={(e) => handleBusquedaProducto(e.target.value)}
@@ -286,9 +289,9 @@ export function Existencias() {
 
             <div className="space-y-2">
               <Label className="font-bold">2. Sede</Label>
-              <Select 
-                value={scanData.sede} 
-                onValueChange={(v) => setScanData({...scanData, sede: v})}
+              <Select
+                value={scanData.sede}
+                onValueChange={(v) => setScanData({ ...scanData, sede: v })}
                 disabled={!scanData.id_medicamento}
               >
                 <SelectTrigger className="bg-slate-50"><SelectValue placeholder="Seleccione sede" /></SelectTrigger>
@@ -303,20 +306,20 @@ export function Existencias() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="font-bold">3. Concentración</Label>
-                <Input 
+                <Input
                   placeholder="Ej: 500mg"
                   value={scanData.concentracion}
-                  onChange={e => setScanData({...scanData, concentracion: e.target.value})}
+                  onChange={e => setScanData({ ...scanData, concentracion: e.target.value })}
                   disabled={!scanData.id_medicamento}
                   className="bg-slate-50"
                 />
               </div>
               <div className="space-y-2">
                 <Label className="font-bold">4. Cantidad</Label>
-                <Input 
-                  type="number" 
+                <Input
+                  type="number"
                   value={scanData.cantidad_actual}
-                  onChange={e => setScanData({...scanData, cantidad_actual: e.target.value})}
+                  onChange={e => setScanData({ ...scanData, cantidad_actual: e.target.value })}
                   disabled={!scanData.id_medicamento}
                   className="bg-slate-50"
                 />
@@ -324,9 +327,9 @@ export function Existencias() {
             </div>
 
             <DialogFooter className="pt-4">
-              <Button 
-                type="submit" 
-                className="w-full bg-blue-600 hover:bg-blue-700 h-12 shadow-lg" 
+              <Button
+                type="submit"
+                className="w-full bg-blue-600 hover:bg-blue-700 h-12 shadow-lg"
                 disabled={!scanData.id_medicamento || !scanData.sede || mutation.isPending}
               >
                 {mutation.isPending ? <Loader2 className="animate-spin mr-2" /> : <Plus className="mr-2 w-5 h-5" />}
